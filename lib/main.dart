@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
@@ -11,6 +13,7 @@ import 'package:geolocator/geolocator.dart';
 import 'database_helper.dart';
 import 'create_alarma_page.dart';
 import 'edit_alarma.dart';
+import 'env.dart';
 
 class AlarmHelper {
   static const MethodChannel _channel = MethodChannel(
@@ -34,6 +37,7 @@ class AlarmHelper {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(const WakeMapApp());
 }
 
@@ -99,29 +103,35 @@ class _WeatherWidgetState extends State<WeatherWidget> {
 
   Future<void> _fetchWeather() async {
     final url =
-        'http://api.open-meteo.com/v1/forecast?latitude=${widget.latitude}&longitude=${widget.longitude}&current_weather=true';
+        'https://api.open-meteo.com/v1/forecast?latitude=${widget.latitude}&longitude=${widget.longitude}&current_weather=true';
 
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final currentWeather = data['current_weather'];
-        setState(() {
-          _temperature = (currentWeather['temperature'] as num?)?.toDouble();
-          _windspeed = (currentWeather['windspeed'] as num?)?.toDouble();
-          _loading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _temperature = (currentWeather['temperature'] as num?)?.toDouble();
+            _windspeed = (currentWeather['windspeed'] as num?)?.toDouble();
+            _loading = false;
+          });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            _error = 'Error del servidor del clima (código: ${response.statusCode})';
+            _loading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _error = 'Error al obtener clima';
+          _error = 'No se pudo conectar al servicio del clima';
           _loading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'Error de conexión';
-        _loading = false;
-      });
     }
   }
 
@@ -419,14 +429,15 @@ class _HomePageState extends State<HomePage> {
     if (!originChanged && !destChanged) return;
 
     final url =
-        'https://maps.googleapis.com/maps/api/directions/json?origin=$oLat,$oLng&destination=$lat,$lng&key=AIzaSyB5Nc_EBy8tO9Wyh0K0B96RDkN9d-MET_4';
+        'https://maps.googleapis.com/maps/api/directions/json?origin=$oLat,$oLng&destination=$lat,$lng&key=$googleMapsApiKey';
     final res = await http.get(Uri.parse(url));
     final data = json.decode(res.body);
 
     if ((data['routes'] as List).isEmpty) return;
 
     final encoded = data['routes'][0]['overview_polyline']['points'];
-    final routePoints = _decodePolyline(encoded);
+    List<PointLatLng> decodedPoints = PolylinePoints().decodePolyline(encoded);
+    final routePoints = decodedPoints.map((p) => LatLng(p.latitude, p.longitude)).toList();
 
     setState(() {
       _polylines
@@ -472,35 +483,6 @@ class _HomePageState extends State<HomePage> {
     _mapController?.animateCamera(
       CameraUpdate.newLatLngBounds(_bounds(routePoints), 50),
     );
-  }
-
-  List<LatLng> _decodePolyline(String encoded) {
-    final points = <LatLng>[];
-    int index = 0, lat = 0, lng = 0;
-
-    while (index < encoded.length) {
-      int shift = 0, result = 0, b;
-
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-
-      points.add(LatLng(lat / 1e5, lng / 1e5));
-    }
-
-    return points;
   }
 
   LatLngBounds _bounds(List<LatLng> pts) {

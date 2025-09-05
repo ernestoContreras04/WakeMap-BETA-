@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -26,14 +27,21 @@ class LocationAutocomplete extends StatefulWidget {
 class _LocationAutocompleteState extends State<LocationAutocomplete> {
   List<dynamic> _suggestions = [];
   bool _searchingLocation = false;
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
 
   Future<List<dynamic>> _fetchSuggestions(String input) async {
     if (input.length < 3) {
-      setState(() => _suggestions = []);
+      if (mounted) setState(() => _suggestions = []);
       return [];
     }
 
-    setState(() => _searchingLocation = true);
+    if (mounted) setState(() => _searchingLocation = true);
 
     final url =
         'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(input)}&key=${widget.apiKey}&types=geocode&language=es';
@@ -45,19 +53,32 @@ class _LocationAutocompleteState extends State<LocationAutocomplete> {
       if (data['status'] == 'OK') {
         return data['predictions'];
       } else {
-        return [];
+        throw Exception('Error al buscar sugerencias: ${data['status']}');
       }
     } catch (e) {
-      return [];
+      throw Exception('No se pudo conectar al servicio de autocompletado');
     } finally {
-      setState(() => _searchingLocation = false);
+      if (mounted) setState(() => _searchingLocation = false);
     }
   }
 
-  void _onChanged(String input) async {
-    final results = await _fetchSuggestions(input);
-    setState(() {
-      _suggestions = results;
+  void _onChanged(String input) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        final results = await _fetchSuggestions(input);
+        if (mounted) {
+          setState(() {
+            _suggestions = results;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString())),
+          );
+        }
+      }
     });
   }
 
