@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -40,7 +42,18 @@ class MainActivity : FlutterActivity() {
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 eventSink = events
-                registerReceiver(alarmStoppedReceiver, IntentFilter("com.example.tfg_definitivo2.ACTION_ALARM_STOPPED"))
+                val intentFilter = IntentFilter("com.example.tfg_definitivo2.ACTION_ALARM_STOPPED")
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    ContextCompat.registerReceiver(
+                        this@MainActivity,
+                        alarmStoppedReceiver,
+                        intentFilter,
+                        ContextCompat.RECEIVER_NOT_EXPORTED
+                    )
+                } else {
+                    registerReceiver(alarmStoppedReceiver, intentFilter)
+                }
             }
 
             override fun onCancel(arguments: Any?) {

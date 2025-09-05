@@ -39,6 +39,10 @@ class DatabaseHelper {
         activa $intType
       )
     ''');
+    
+    // Crear índices para optimizar consultas frecuentes
+    await db.execute('CREATE INDEX idx_alarmas_activa ON alarmas(activa)');
+    await db.execute('CREATE INDEX idx_alarmas_nombre ON alarmas(nombre)');
   }
 
   Future<int> insertAlarma(Map<String, dynamic> alarma) async {
@@ -52,7 +56,12 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getAlarmas() async {
     final db = await instance.database;
-    return await db.query('alarmas');
+    return await db.query('alarmas', orderBy: 'activa DESC, nombre ASC');
+  }
+  
+  Future<List<Map<String, dynamic>>> getAlarmasActivas() async {
+    final db = await instance.database;
+    return await db.query('alarmas', where: 'activa = ?', whereArgs: [1]);
   }
 
   Future<int> deleteAlarma(int id) async {
