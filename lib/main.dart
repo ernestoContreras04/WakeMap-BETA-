@@ -202,34 +202,60 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         child: Text(_error!, style: const TextStyle(color: Colors.red)),
       );
     }
-    return Container(
-      padding: const EdgeInsets.all(12),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade200),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.thermostat, size: 40, color: Colors.orange),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Temperatura: ${_temperature?.toStringAsFixed(1) ?? '--'} °C',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              CupertinoIcons.thermometer,
+              size: 24,
+              color: Colors.orange,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Temperatura: ${_temperature?.toStringAsFixed(1) ?? '--'} °C',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
                 ),
-              ),
-              Text(
-                'Viento: ${_windspeed?.toStringAsFixed(1) ?? '--'} km/h',
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  'Viento: ${_windspeed?.toStringAsFixed(1) ?? '--'} km/h',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -440,11 +466,13 @@ class _HomePageState extends State<HomePage> {
       (a) => a['activa'] == 1,
       orElse: () => {},
     );
+    // Crear una lista mutable para ordenar
+    final alarmasList = List<Map<String, dynamic>>.from(alarmas);
     // Ordenar según reglas: pinned -> activa -> nombre
-    alarmas.sort(_compareAlarmas);
+    alarmasList.sort(_compareAlarmas);
     setState(() {
       _alarmas.clear();
-      _alarmas.addAll(alarmas);
+      _alarmas.addAll(alarmasList);
       _centered = false;
       _weatherKey = activa.isNotEmpty
           ? 'active_${activa['id']}'
@@ -760,72 +788,168 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAlarmaCard(Map<String, dynamic> alarma, ThemeData theme) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 4,
-      child: InkWell(
-        onTap: () async {
-          final updated = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => EditAlarmaPage(
-                alarma: alarma,
-                onDelete: (alarmaEliminada) async {
-                  _lastDeletedAlarma = alarmaEliminada;
-                  await _loadAlarmas();
-                  _showUndoSnackBar();
-                },
-              ),
-            ),
-          );
-          if (updated == true) await _loadAlarmas();
-        },
-        onLongPress: () async {
-          final confirm = await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('Eliminar Alarma'),
-              content: const Text('¿Deseas eliminar esta alarma?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancelar'),
+    final isActive = alarma['activa'] == 1;
+    final isPinned = _pinnedAlarmIds.contains(alarma['id']);
+    
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: isActive 
+            ? Border.all(color: theme.colorScheme.primary.withOpacity(0.3), width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: isActive 
+                ? theme.colorScheme.primary.withOpacity(0.1)
+                : Colors.black12,
+            blurRadius: isActive ? 15 : 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () async {
+            final updated = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditAlarmaPage(
+                  alarma: alarma,
+                  onDelete: (alarmaEliminada) async {
+                    _lastDeletedAlarma = alarmaEliminada;
+                    await _loadAlarmas();
+                    _showUndoSnackBar();
+                  },
                 ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context,  true),
-                  child: const Text('Eliminar'),
+              ),
+            );
+            if (updated == true) await _loadAlarmas();
+          },
+          onLongPress: () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Text('Eliminar Alarma'),
+                content: const Text('¿Deseas eliminar esta alarma?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Eliminar'),
+                  ),
+                ],
+              ),
+            );
+            if (confirm == true) await _deleteAlarma(alarma['id']);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isActive 
+                        ? theme.colorScheme.primary.withOpacity(0.15)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    CupertinoIcons.location_solid,
+                    color: isActive ? theme.colorScheme.primary : Colors.grey[600],
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              alarma['nombre'] ?? 'Sin nombre',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isPinned) 
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'FIJA',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.amber,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              isActive ? CupertinoIcons.bell_solid : CupertinoIcons.bell,
+                              key: ValueKey(isActive),
+                              size: 20,
+                              color: isActive ? theme.colorScheme.primary : Colors.grey[400],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Dirección: ${alarma['ubicacion'] ?? 'Desconocida'}',
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Rango: ${alarma['rango'] ?? '-'} m',
+                        style: const TextStyle(
+                          color: Colors.black45,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                AnimatedScale(
+                  scale: isActive ? 1.1 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Switch(
+                    activeColor: theme.colorScheme.primary,
+                    value: isActive,
+                    onChanged: (val) => _toggleAlarmaActiva(alarma['id'], val),
+                  ),
                 ),
               ],
             ),
-          );
-          if (confirm == true) await _deleteAlarma(alarma['id']);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Icon(Icons.location_on, color: theme.colorScheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      alarma['nombre'] ?? 'Sin nombre',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    Text('Dirección: ${alarma['ubicacion'] ?? 'Desconocida'}'),
-                    Text('Rango: ${alarma['rango'] ?? '-'} m'),
-                  ],
-                ),
-              ),
-              Switch(
-                activeColor: theme.colorScheme.primary,
-                value: alarma['activa'] == 1,
-                onChanged: (val) => _toggleAlarmaActiva(alarma['id'], val),
-              ),
-            ],
           ),
         ),
       ),
@@ -839,16 +963,36 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: Text(
           widget.title,
-          style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        backgroundColor: theme.colorScheme.primary,
+        backgroundColor: Colors.transparent,
         centerTitle: true,
-        elevation: 3,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 400),
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.1),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          );
+        },
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(
+                child: CupertinoActivityIndicator(
+                  radius: 20,
+                ),
+              )
             : _currentLocation == null
                 ? _buildPermissionRetry(theme)
                 : Column(
@@ -859,44 +1003,64 @@ class _HomePageState extends State<HomePage> {
                         latitude: _getWeatherLocation().latitude,
                         longitude: _getWeatherLocation().longitude,
                       ),
-                      SizedBox(
-                        height: 260,
-                        child: GoogleMap(
-                          initialCameraPosition: CameraPosition(
-                            target: _currentLocation != null
-                                ? LatLng(
-                                    _currentLocation!.latitude!,
-                                    _currentLocation!.longitude!,
-                                  )
-                                : const LatLng(0, 0),
-                            zoom: 14,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 400),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 15,
+                                offset: Offset(0, 8),
+                              ),
+                            ],
                           ),
-                          onMapCreated: (c) => _mapController = c,
-                          myLocationEnabled: true,
-                          myLocationButtonEnabled: true,
-                          polylines: _polylines,
-                          markers: _markers,
-                          circles: _circles,
-                          zoomControlsEnabled: false,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: SizedBox(
+                              height: 260,
+                              child: GoogleMap(
+                                initialCameraPosition: CameraPosition(
+                                  target: _currentLocation != null
+                                      ? LatLng(
+                                          _currentLocation!.latitude!,
+                                          _currentLocation!.longitude!,
+                                        )
+                                      : const LatLng(0, 0),
+                                  zoom: 14,
+                                ),
+                                onMapCreated: (c) => _mapController = c,
+                                myLocationEnabled: true,
+                                myLocationButtonEnabled: true,
+                                polylines: _polylines,
+                                markers: _markers,
+                                circles: _circles,
+                                zoomControlsEnabled: false,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),
                       Expanded(
                         child: _alarmas.isEmpty
-                            ? Center(
-                                child: Text(
-                                  'No hay alarmas guardadas',
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                              )
+                            ? _buildEmptyState(theme)
                             : AnimatedList(
                                 key: _listKey,
                                 initialItemCount: _alarmas.length,
                                 padding: const EdgeInsets.only(bottom: 20),
                                 itemBuilder: (context, index, animation) {
-                                  return SizeTransition(
-                                    sizeFactor: animation,
-                                    child: _buildAlarmaCard(_alarmas[index], theme),
+                                  return SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(1, 0),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: SizeTransition(
+                                      sizeFactor: animation,
+                                      child: _buildAlarmaCard(_alarmas[index], theme),
+                                    ),
                                   );
                                 },
                               ),
@@ -905,18 +1069,76 @@ class _HomePageState extends State<HomePage> {
                   ),
       ),
       floatingActionButton: _currentLocation != null
-          ? FloatingActionButton(
-              backgroundColor: theme.colorScheme.primary,
-              child: const Icon(Icons.add),
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CreateAlarmaPage()),
-                );
-                await _loadAlarmas();
-              },
+          ? AnimatedScale(
+              scale: _currentLocation != null ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: FloatingActionButton(
+                backgroundColor: theme.colorScheme.primary,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  CupertinoIcons.add,
+                  size: 24,
+                  color: Colors.white,
+                ),
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CreateAlarmaPage()),
+                  );
+                  if (result == true) {
+                    await _loadAlarmas();
+                  }
+                },
+              ),
             )
           : null,
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: AnimatedOpacity(
+        opacity: 0.7,
+        duration: const Duration(milliseconds: 500),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                CupertinoIcons.bell,
+                size: 40,
+                color: Colors.grey[400],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'No hay alarmas guardadas',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Toca el botón + para crear tu primera alarma',
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -927,19 +1149,52 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                CupertinoIcons.location_slash,
+                size: 40,
+                color: Colors.red[400],
+              ),
+            ),
+            const SizedBox(height: 20),
             Text(
-              'No se han concedido permisos de ubicación',
-              style: theme.textTheme.titleMedium,
+              'Permisos de ubicación requeridos',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            Text(
+              'Necesitamos acceso a tu ubicación para funcionar correctamente',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _initialize,
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
               ),
-              child: const Text('Reintentar permisos'),
+              child: const Text(
+                'Conceder permisos',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
