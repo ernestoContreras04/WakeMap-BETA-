@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Tfg Definitivo2</string>
+	<string>WakeMap</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -45,5 +45,64 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Permisos de ubicación -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>WakeMap necesita acceso a tu ubicación para crear y activar alarmas basadas en ubicación geográfica.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>WakeMap necesita acceso continuo a tu ubicación para detectar cuando entres en las zonas de alarma configuradas.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>WakeMap necesita acceso continuo a tu ubicación para activar alarmas cuando entres en las zonas configuradas.</string>
+	
+	<!-- Permisos de micrófono -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>WakeMap necesita acceso al micrófono para el reconocimiento de voz y comandos de voz.</string>
+	
+	<!-- Permisos de notificaciones -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>WakeMap necesita enviar notificaciones para alertarte cuando entres en las zonas de alarma.</string>
+	
+	<!-- Configuración de Google Maps -->
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+	
+	<!-- Configuración de red -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>maps.googleapis.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+			<key>api.open-meteo.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+		</dict>
+	</dict>
+	
+	<!-- Configuración de background modes -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>background-processing</string>
+		<string>background-fetch</string>
+	</array>
+	
+	<!-- Configuración de capacidades -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>location-services</string>
+		<string>gps</string>
+	</array>
 </dict>
 </plist>
