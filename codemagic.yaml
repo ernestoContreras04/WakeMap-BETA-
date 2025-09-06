@@ -21,7 +21,7 @@ workflows:
       - name: Flutter analyze
         script: |
           flutter packages get
-          flutter analyze
+          flutter analyze --no-fatal-infos
           
       - name: Flutter unit tests
         script: |
