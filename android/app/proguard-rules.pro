@@ -70,3 +70,16 @@
     java.lang.Object writeReplace();
     java.lang.Object readResolve();
 }
+
+# Google Play Core - Fix for R8 missing classes
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**
+
+# Flutter Play Store Split Application
+-keep class io.flutter.embedding.android.FlutterPlayStoreSplitApplication { *; }
+-keep class io.flutter.embedding.engine.deferredcomponents.** { *; }
+
+# Keep all classes that might be referenced by Flutter deferred components
+-keep class com.google.android.play.core.splitcompat.** { *; }
+-keep class com.google.android.play.core.splitinstall.** { *; }
+-keep class com.google.android.play.core.tasks.** { *; }
