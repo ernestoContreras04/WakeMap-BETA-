@@ -3,9 +3,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:tfg_definitivo2/database_helper.dart';
 import 'package:tfg_definitivo2/theme_provider.dart';
 import 'package:tfg_definitivo2/l10n/app_localizations.dart';
+import 'package:tfg_definitivo2/alarm_sounds.dart';
+import 'package:logger/logger.dart';
+import 'package:tfg_definitivo2/main.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -25,11 +29,42 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _autoStartEnabled = false;
   bool _batteryOptimizationEnabled = false;
   bool _cacheEnabled = true;
+  String _selectedAlarmSound = 'default';
+  final Logger _logger = Logger();
+  
+  // Variables para reproducción de sonidos
+  final AudioPlayer _previewPlayer = AudioPlayer();
+  final GlobalAudioManager _audioManager = GlobalAudioManager();
+  String? _currentlyPlayingSound;
+  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
+    
+    // Registrar el player de vista previa
+    _audioManager.registerPlayer(_previewPlayer);
+    
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    // Desregistrar el player antes de disponerlo
+    _audioManager.unregisterPlayer(_previewPlayer);
+    _previewPlayer.dispose();
+    super.dispose();
+  }
+  
+  // Función para detener el player de vista previa
+  Future<void> stopPreviewPlayer() async {
+    try {
+      await _previewPlayer.stop();
+      await _previewPlayer.setReleaseMode(ReleaseMode.release);
+      _logger.d('✅ PLAYER DE VISTA PREVIA DETENIDO');
+    } catch (e) {
+      _logger.d('⚠️ ERROR DETENIENDO PLAYER DE VISTA PREVIA: $e');
+    }
   }
 
   List<Map<String, String>> _getLanguageItems() {
@@ -54,6 +89,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _autoStartEnabled = prefs.getBool('auto_start_enabled') ?? false;
       _batteryOptimizationEnabled = prefs.getBool('battery_optimization_enabled') ?? false;
       _cacheEnabled = prefs.getBool('cache_enabled') ?? true;
+      _selectedAlarmSound = prefs.getString('selected_alarm_sound') ?? 'default';
     });
   }
 
@@ -137,6 +173,102 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _playSoundPreview(String soundId) async {
+    try {
+      // Si ya está reproduciendo el mismo sonido, detenerlo
+      if (_currentlyPlayingSound == soundId && _isPlaying) {
+        await _stopSoundPreview();
+        return;
+      }
+
+      // Detener cualquier sonido que esté reproduciéndose
+      await _stopSoundPreview();
+
+      final sound = AlarmSoundManager.getSoundById(soundId);
+      if (sound != null) {
+        // Actualizar estado ANTES de reproducir
+        setState(() {
+          _currentlyPlayingSound = soundId;
+          _isPlaying = true;
+        });
+        
+        // Reproducir en bucle para la vista previa (para que pueda durar más tiempo)
+        await _previewPlayer.setReleaseMode(ReleaseMode.loop);
+        await _previewPlayer.play(AssetSource(sound.assetPath));
+        
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _currentlyPlayingSound = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _stopSoundPreview() async {
+    try {
+      await _previewPlayer.stop();
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _currentlyPlayingSound = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _currentlyPlayingSound = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _playSoundPreviewInModal(String soundId, StateSetter setModalState) async {
+    try {
+      // Si ya está reproduciendo el mismo sonido, detenerlo
+      if (_currentlyPlayingSound == soundId && _isPlaying) {
+        await _stopSoundPreviewInModal(setModalState);
+        return;
+      }
+
+      // Detener cualquier sonido que esté reproduciéndose
+      await _stopSoundPreviewInModal(setModalState);
+
+      final sound = AlarmSoundManager.getSoundById(soundId);
+      if (sound != null) {
+        // Actualizar estado ANTES de reproducir
+        _currentlyPlayingSound = soundId;
+        _isPlaying = true;
+        setModalState(() {}); // Forzar reconstrucción del modal
+        
+        // Reproducir en bucle para la vista previa
+        await _previewPlayer.setReleaseMode(ReleaseMode.loop);
+        await _previewPlayer.play(AssetSource(sound.assetPath));
+        
+      }
+    } catch (e) {
+      _isPlaying = false;
+      _currentlyPlayingSound = null;
+      setModalState(() {});
+    }
+  }
+
+  Future<void> _stopSoundPreviewInModal(StateSetter setModalState) async {
+    try {
+      await _previewPlayer.stop();
+      _isPlaying = false;
+      _currentlyPlayingSound = null;
+      setModalState(() {}); // Forzar reconstrucción del modal
+    } catch (e) {
+      _isPlaying = false;
+      _currentlyPlayingSound = null;
+      setModalState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -190,6 +322,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   _saveSetting('vibration_enabled', value);
                 },
               ),
+              _buildSoundSelectorTile(),
             ]),
             
             const SizedBox(height: 24),
@@ -687,5 +820,249 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildSoundSelectorTile() {
+    final currentSound = AlarmSoundManager.getSoundById(_selectedAlarmSound) ?? 
+                        AlarmSoundManager.getDefaultSound();
+    
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? Colors.orange.withOpacity(0.2)
+              : Colors.orange[50],
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          CupertinoIcons.music_note_2,
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? Colors.orange[300]
+              : Colors.orange[600],
+          size: 20,
+        ),
+      ),
+      title: Text(
+        'Sonido de Alarma',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+          color: Theme.of(context).textTheme.bodyMedium?.color,
+        ),
+      ),
+      subtitle: Text(
+        currentSound.description,
+        style: TextStyle(
+          color: Theme.of(context).textTheme.bodySmall?.color,
+          fontSize: 14,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            currentSound.name,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            CupertinoIcons.chevron_right,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.grey[500]
+                : Colors.grey[400],
+            size: 16,
+          ),
+        ],
+      ),
+      onTap: _showSoundSelector,
+    );
+  }
+
+  void _showSoundSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardTheme.color,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Seleccionar Sonido de Alarma',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).textTheme.titleMedium?.color,
+                        ),
+                      ),
+                      if (_isPlaying) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...AlarmSoundManager.availableSounds.map((sound) {
+              final isSelected = sound.id == _selectedAlarmSound;
+              final isPlaying = _currentlyPlayingSound == sound.id && _isPlaying;
+              
+              // Debug: imprimir estado para cada sonido
+              
+              return ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isSelected 
+                        ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isSelected ? CupertinoIcons.checkmark : CupertinoIcons.music_note_2,
+                    color: isSelected 
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey[600],
+                    size: 20,
+                  ),
+                ),
+                title: Text(
+                  sound.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
+                ),
+                subtitle: Text(
+                  sound.description,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                    fontSize: 14,
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Botón de reproducción con animación
+                    GestureDetector(
+                      onTap: () => _playSoundPreviewInModal(sound.id, setModalState),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: isPlaying 
+                              ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                              : Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: isPlaying ? [
+                            BoxShadow(
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ] : null,
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(
+                              isPlaying ? CupertinoIcons.stop_fill : CupertinoIcons.play_fill,
+                              color: isPlaying 
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey[600],
+                              size: 16,
+                            ),
+                            if (isPlaying)
+                              TweenAnimationBuilder<double>(
+                                duration: const Duration(milliseconds: 1000),
+                                tween: Tween(begin: 0.0, end: 1.0),
+                                builder: (context, value, child) {
+                                  return Container(
+                                    width: 36 + (value * 8),
+                                    height: 36 + (value * 8),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Theme.of(context).colorScheme.primary.withOpacity(0.3 * (1 - value)),
+                                        width: 2,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onEnd: () {
+                                  // Reiniciar la animación
+                                  if (_currentlyPlayingSound == sound.id && _isPlaying) {
+                                    setState(() {});
+                                  }
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  setState(() => _selectedAlarmSound = sound.id);
+                  _saveSetting('selected_alarm_sound', sound.id);
+                  _logger.i('🔧 Sonido de alarma seleccionado: ${sound.name} (ID: ${sound.id})');
+                  Navigator.pop(context);
+                },
+              );
+            }).toList(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      );
+        },
+      ),
+    ).then((_) {
+      // Detener el sonido cuando se cierre el modal
+      _stopSoundPreview();
+    });
   }
 }

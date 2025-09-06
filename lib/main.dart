@@ -18,6 +18,45 @@ import 'settings_page.dart';
 import 'theme_manager.dart';
 import 'theme_provider.dart';
 import 'l10n/app_localizations.dart';
+import 'alarm_sounds.dart';
+import 'package:logger/logger.dart';
+
+// Singleton global para manejar todos los players de audio
+class GlobalAudioManager {
+  static final GlobalAudioManager _instance = GlobalAudioManager._internal();
+  factory GlobalAudioManager() => _instance;
+  GlobalAudioManager._internal();
+  
+  final List<AudioPlayer> _activePlayers = [];
+  final Logger _logger = Logger();
+  
+  void registerPlayer(AudioPlayer player) {
+    _activePlayers.add(player);
+    _logger.d('📝 Player registrado. Total: ${_activePlayers.length}');
+  }
+  
+  void unregisterPlayer(AudioPlayer player) {
+    _activePlayers.remove(player);
+    _logger.d('📝 Player desregistrado. Total: ${_activePlayers.length}');
+  }
+  
+  Future<void> stopAllPlayers() async {
+    _logger.d('🛑 DETENIENDO TODOS LOS PLAYERS REGISTRADOS: ${_activePlayers.length}');
+    
+    for (int i = 0; i < _activePlayers.length; i++) {
+      try {
+        _logger.d('🛑 Deteniendo player $i...');
+        await _activePlayers[i].stop();
+        await _activePlayers[i].setReleaseMode(ReleaseMode.release);
+        _logger.d('✅ Player $i detenido correctamente');
+      } catch (e) {
+        _logger.d('⚠️ Error deteniendo player $i: $e');
+      }
+    }
+    
+    _logger.d('✅ TODOS LOS PLAYERS REGISTRADOS DETENIDOS');
+  }
+}
 
 class AlarmHelper {
   static const MethodChannel _channel = MethodChannel(
@@ -354,9 +393,40 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Location _location = Location();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final Logger _logger = Logger();
+  
+  // Player global para evitar conflictos
+  static final AudioPlayer _globalAlarmPlayer = AudioPlayer();
+  
+  // Manager global de audio
+  final GlobalAudioManager _audioManager = GlobalAudioManager();
+  
+  // Función estática para detener todos los players de la app
+  static Future<void> stopAllPlayers() async {
+    final logger = Logger();
+    try {
+      logger.d('🛑 DETENIENDO PLAYER GLOBAL...');
+      await _globalAlarmPlayer.stop();
+      await _globalAlarmPlayer.setReleaseMode(ReleaseMode.release);
+      logger.d('✅ PLAYER GLOBAL DETENIDO');
+      
+      // También intentar detener cualquier player de vista previa
+      try {
+        final tempPlayer = AudioPlayer();
+        await tempPlayer.stop();
+        await tempPlayer.dispose();
+        logger.d('✅ PLAYER TEMPORAL ADICIONAL DETENIDO');
+      } catch (e) {
+        logger.d('⚠️ ERROR EN PLAYER TEMPORAL ADICIONAL: $e');
+      }
+      
+    } catch (e) {
+      logger.d('⚠️ ERROR DETENIENDO PLAYER GLOBAL: $e');
+    }
+  }
 
   GoogleMapController? _mapController;
   LocationData? _currentLocation, _lastLocation;
@@ -372,26 +442,64 @@ class _HomePageState extends State<HomePage> {
   List<LatLng> _lastRoute = [];
   LatLng? _lastOrig, _lastDest;
   String? _weatherKey;
+  String _selectedAlarmSound = 'default';
 
   bool _loading = true, _notified = false, _centered = false;
 
   @override
   void initState() {
     super.initState();
+    
+    // Registrar players en el manager global
+    _audioManager.registerPlayer(_audioPlayer);
+    _audioManager.registerPlayer(_globalAlarmPlayer);
+    
     _initialize();
     AlarmHelper.alarmEvents.listen((event) {
       if (event == 'alarm_stopped') _onAlarmStopped();
     });
+    
+    // Observar cambios en el ciclo de vida de la app
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Escuchar cambios en la configuración del sonido
+    _listenToSoundSettingsChanges();
+  }
+
+  void _listenToSoundSettingsChanges() {
+    // Recargar configuración cada vez que se vuelva a la página principal
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAlarmSoundSettings();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recargar configuración cuando cambien las dependencias (ej: volver de ajustes)
+    _loadAlarmSoundSettings();
   }
 
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _globalAlarmPlayer.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Recargar configuración cuando la app vuelve al foreground
+      _loadAlarmSoundSettings();
+    }
   }
 
   Future<void> _initialize() async {
     await _loadPinnedAlarms();
+    await _loadAlarmSoundSettings();
     if (await _requestPermission()) {
       _currentLocation = await _location.getLocation();
       _loading = false;
@@ -410,12 +518,9 @@ class _HomePageState extends State<HomePage> {
       try {
         final list = (jsonDecode(raw) as List).cast<int>();
         _pinnedAlarmIds.addAll(list);
-        print('Pinned alarms cargadas: $_pinnedAlarmIds');
       } catch (e) {
-        print('Error cargando pinned alarms: $e');
       }
     } else {
-      print('No hay pinned alarms guardadas');
     }
   }
 
@@ -423,7 +528,12 @@ class _HomePageState extends State<HomePage> {
     final prefs = await SharedPreferences.getInstance();
     final jsonString = jsonEncode(_pinnedAlarmIds.toList());
     await prefs.setString('pinned_alarm_ids', jsonString);
-    print('Pinned alarms guardadas: $jsonString');
+  }
+
+  Future<void> _loadAlarmSoundSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _selectedAlarmSound = prefs.getString('selected_alarm_sound') ?? 'default';
+    _logger.d('🔧 Sonido cargado desde SharedPreferences: $_selectedAlarmSound');
   }
 
   Future<void> _unpinAlarma(int id) async {
@@ -438,15 +548,12 @@ class _HomePageState extends State<HomePage> {
     final aIsPinned = _pinnedAlarmIds.contains(aId);
     final bIsPinned = _pinnedAlarmIds.contains(bId);
     
-    print('Comparando: ${a['nombre']} (ID: $aId, pinned: $aIsPinned) vs ${b['nombre']} (ID: $bId, pinned: $bIsPinned)');
     
     // 1. PRIORIDAD MÁXIMA: Alarmas pinned (usadas recientemente) SIEMPRE primero
     if (aIsPinned && !bIsPinned) {
-      print('  -> ${a['nombre']} va primero (pinned)');
       return -1; // a va antes que b
     }
     if (!aIsPinned && bIsPinned) {
-      print('  -> ${b['nombre']} va primero (pinned)');
       return 1; // b va antes que a
     }
     
@@ -455,7 +562,6 @@ class _HomePageState extends State<HomePage> {
       final aIndex = _pinnedAlarmIds.indexOf(aId);
       final bIndex = _pinnedAlarmIds.indexOf(bId);
       final result = aIndex.compareTo(bIndex);
-      print('  -> Orden por uso reciente: $aIndex vs $bIndex = $result');
       return result;
     }
     
@@ -464,11 +570,9 @@ class _HomePageState extends State<HomePage> {
     final bIsActive = (b['activa'] ?? 0) == 1;
     
     if (aIsActive && !bIsActive) {
-      print('  -> ${a['nombre']} va primero (activa)');
       return -1;
     }
     if (!aIsActive && bIsActive) {
-      print('  -> ${b['nombre']} va primero (activa)');
       return 1;
     }
     
@@ -476,7 +580,6 @@ class _HomePageState extends State<HomePage> {
     final aName = (a['nombre'] ?? '').toString().toLowerCase();
     final bName = (b['nombre'] ?? '').toString().toLowerCase();
     final result = aName.compareTo(bName);
-    print('  -> Orden alfabético: $result');
     return result;
   }
 
@@ -547,21 +650,50 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onAlarmStopped() async {
+    _logger.d('🛑 BOTÓN DETENER PRESIONADO - _onAlarmStopped() llamado');
+    _logger.d('🛑 Estado antes: _notified=$_notified');
+    
     final activa = _alarmas.firstWhere(
       (a) => a['activa'] == 1,
       orElse: () => {},
     );
-    if (activa.isNotEmpty) await _toggleAlarmaActiva(activa['id'], false);
-    if (mounted) setState(() => _notified = false);
+    
+    if (activa.isNotEmpty) {
+      _logger.d('🛑 Desactivando alarma: ${activa['nombre']} (ID: ${activa['id']})');
+      await _toggleAlarmaActiva(activa['id'], false);
+      _logger.d('✅ Alarma desactivada en base de datos');
+    } else {
+      _logger.d('⚠️ No se encontró alarma activa para desactivar');
+    }
+    
+    // Asegurarse de detener el sonido
+    _logger.d('🛑 Deteniendo sonido de alarma...');
+    await _stopAlarm();
+    
+    if (mounted) {
+      setState(() => _notified = false);
+      _logger.d('✅ Estado _notified actualizado a false');
+    }
+    
+    _logger.i('🛑 ALARMA COMPLETAMENTE DETENIDA Y DESACTIVADA');
   }
 
   void _checkProximity(LocationData loc) async {
+    // Recargar configuración de sonido cada vez que se verifica proximidad
+    await _loadAlarmSoundSettings();
+    
     final activa = _alarmas.firstWhere(
       (a) => a['activa'] == 1,
       orElse: () => {},
     );
+    
+    _logger.d('🔍 Verificando proximidad - Alarmas activas: ${activa.isNotEmpty ? activa['nombre'] : 'ninguna'}');
+    
     if (activa.isEmpty) {
-      if (_notified) await _stopAlarm();
+      if (_notified) {
+        _logger.d('🛑 No hay alarmas activas, deteniendo alarma');
+        await _stopAlarm();
+      }
       return;
     }
 
@@ -574,24 +706,80 @@ class _HomePageState extends State<HomePage> {
       activa['longitud'],
     );
 
+    _logger.d('📏 Distancia: ${dist.toStringAsFixed(1)}m, Rango: ${rango}m, Notificado: $_notified');
+
     // Solo cambiar estado si hay cambio real
     if (dist <= rango && !_notified) {
+      _logger.d('🚨 ACTIVANDO ALARMA - Distancia dentro del rango');
       _notified = true;
+      await _playAlarmSound();
+      await AlarmHelper.startAlarmActivity();
+    } else if (dist <= rango && _notified) {
+      _logger.d('🔊 ALARMA YA ACTIVADA - Asegurando reproducción');
+      await _playAlarmSound();
       await AlarmHelper.startAlarmActivity();
     } else if (dist > rango && _notified) {
+      _logger.d('✅ DESACTIVANDO ALARMA - Distancia fuera del rango');
       _notified = false;
       await _stopAlarm();
     }
   }
 
+  Future<void> _playAlarmSound() async {
+    try {
+      _logger.d('🔧 Sonido seleccionado en memoria: $_selectedAlarmSound');
+      
+      _logger.d('🛑 DETENIENDO TODOS LOS PLAYERS ANTES DE REPRODUCIR');
+      
+      // Detener TODOS los players registrados
+      await _audioManager.stopAllPlayers();
+      
+      _logger.d('✅ TODOS LOS PLAYERS DETENIDOS');
+      
+      // Esperar un momento para asegurar que se detengan completamente
+      await Future.delayed(const Duration(milliseconds: 100));
+      _logger.d('⏱️ ESPERANDO DETENCIÓN COMPLETA...');
+      
+      final sound = AlarmSoundManager.getSoundById(_selectedAlarmSound) ?? 
+                   AlarmSoundManager.getDefaultSound();
+      
+      _logger.i('🚨 ALARMA ACTIVADA - Reproduciendo: ${sound.name}');
+      _logger.d('🎵 Archivo a reproducir: ${sound.assetPath}');
+      _logger.d('✅ SOLUCIONADO: AlarmActivity.kt ya NO reproduce audio automáticamente');
+      _logger.d('✅ SOLO FLUTTER reproduce el sonido seleccionado');
+      
+      // Usar solo el player global
+      await _globalAlarmPlayer.setReleaseMode(ReleaseMode.loop);
+      await _globalAlarmPlayer.play(AssetSource(sound.assetPath));
+      
+      _logger.d('✅ REPRODUCCIÓN INICIADA CON PLAYER GLOBAL');
+      
+    } catch (e) {
+      _logger.e('❌ ERROR EN REPRODUCCIÓN: $e');
+    }
+  }
+
   Future<void> _stopAlarm() async {
-    await _audioPlayer.pause();
-    await _audioPlayer.stop();
-    await _audioPlayer.setReleaseMode(ReleaseMode.release);
+    try {
+      _logger.d('🛑 INICIANDO DETENCIÓN DE ALARMA');
+      _logger.d('🛑 Estado antes de detener: _notified=$_notified');
+      
+      // Detener TODOS los players registrados
+      await _audioManager.stopAllPlayers();
+      _logger.d('✅ TODOS LOS PLAYERS DETENIDOS');
+      
+      // Esperar un momento para asegurar que se detenga completamente
+      await Future.delayed(const Duration(milliseconds: 200));
+      _logger.d('⏱️ ESPERANDO DETENCIÓN COMPLETA...');
+      
+      _logger.i('🛑 ALARMA DETENIDA COMPLETAMENTE');
+      
+    } catch (e) {
+      _logger.e('❌ ERROR DETENIENDO ALARMA: $e');
+    }
   }
 
   Future<void> _loadAlarmas() async {
-    print('=== CARGANDO ALARMAS ===');
     
     // Asegurarse de que las alarmas pinned estén cargadas
     await _loadPinnedAlarms();
@@ -599,14 +787,11 @@ class _HomePageState extends State<HomePage> {
     final alarmas = await DatabaseHelper.instance.getAlarmas();
     if (!mounted) return;
     
-    print('Alarmas cargadas desde BD: ${alarmas.length}');
-    print('Pinned IDs: $_pinnedAlarmIds');
     
     // Debug: mostrar estado inicial de cada alarma
     for (var alarma in alarmas) {
       final isPinned = _pinnedAlarmIds.contains(alarma['id']);
       final isActive = (alarma['activa'] ?? 0) == 1;
-      print('  ${alarma['nombre']} (ID: ${alarma['id']}) - Pinned: $isPinned, Activa: $isActive');
     }
     
     final activa = alarmas.firstWhere(
@@ -617,17 +802,14 @@ class _HomePageState extends State<HomePage> {
     // Crear una lista mutable para ordenar
     final alarmasList = List<Map<String, dynamic>>.from(alarmas);
     
-    print('Ordenando alarmas...');
     // Ordenar según reglas: pinned -> activa -> nombre
     alarmasList.sort(_compareAlarmas);
     
     // Debug: imprimir alarmas después del ordenamiento
-    print('=== ORDEN FINAL ===');
     for (var i = 0; i < alarmasList.length; i++) {
       final alarma = alarmasList[i];
       final isPinned = _pinnedAlarmIds.contains(alarma['id']);
       final isActive = (alarma['activa'] ?? 0) == 1;
-      print('$i: ${alarma['nombre']} (ID: ${alarma['id']}) - Pinned: $isPinned, Activa: $isActive');
     }
     
     // Animar los cambios en la lista
@@ -674,7 +856,6 @@ class _HomePageState extends State<HomePage> {
     _alarmas.addAll(newAlarmasList);
     
     if (movedAlarmIds.isNotEmpty) {
-      print('Alarmas que se movieron: $movedAlarmIds');
     }
   }
 
@@ -721,31 +902,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _toggleAlarmaActiva(int id, bool activar) async {
-    print('=== TOGGLE ALARMA ===');
-    print('ID: $id, Activar: $activar');
-    print('Pinned IDs ANTES: $_pinnedAlarmIds');
+    _logger.d('🔄 _toggleAlarmaActiva llamado: ID=$id, activar=$activar');
     
     // 1) Actualizar todas las alarmas en BD
     for (final alarma in _alarmas) {
       if (activar && alarma['id'] == id) {
         // Activar solo la alarma seleccionada
+        _logger.d('✅ Activando alarma: ${alarma['nombre']} (ID: $id)');
         await DatabaseHelper.instance.updateAlarma({
           ...alarma,
           'activa': 1,
         });
-        print('Activada: ${alarma['nombre']}');
       } else {
         // Desactivar todas las demás alarmas
+        if (alarma['activa'] == 1) {
+          _logger.d('🛑 Desactivando alarma: ${alarma['nombre']} (ID: ${alarma['id']})');
+        }
         await DatabaseHelper.instance.updateAlarma({
           ...alarma,
           'activa': 0,
         });
-        if (alarma['activa'] == 1) {
-          print('Desactivada: ${alarma['nombre']}');
-        }
       }
     }
-    print('Base de datos actualizada');
 
     // Si se activa, fijarla como "pinned" para que quede arriba incluso al desactivar
     if (activar) {
@@ -756,18 +934,16 @@ class _HomePageState extends State<HomePage> {
       // Guardar el ID de la alarma que se activó para animación especial
       _lastActivatedAlarmId = id;
       await _savePinnedAlarms();
-      print('Añadido a pinned (posición 0): $id');
     } else {
       // Si se desactiva, limpiar el ID de activación
+      _logger.d('🔄 Limpiando ID de activación');
       _lastActivatedAlarmId = null;
     }
 
-    print('Pinned IDs DESPUÉS: $_pinnedAlarmIds');
-    
+    _logger.d('🔄 Recargando alarmas para reflejar cambios...');
     // Recargar alarmas para reflejar cambios
-    print('Recargando alarmas...');
     await _loadAlarmas();
-    print('=== FIN TOGGLE ===');
+    _logger.d('✅ Alarmas recargadas correctamente');
   }
 
   Future<void> _drawRoute() async {
@@ -1006,7 +1182,6 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('Error obteniendo nombre de ubicación: $e');
     }
     
     return null;

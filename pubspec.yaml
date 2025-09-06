@@ -25,6 +25,7 @@ dependencies:
   flutter_launcher_icons: ^0.14.3
   sqflite_common_ffi: ^2.0.0+3
   speech_to_text: ^7.2.0
+  logger: ^2.0.2+1
   
   # Optimizaciones de rendimiento
   cached_network_image: ^3.3.1
@@ -49,7 +50,11 @@ flutter_icons:
 flutter:
   uses-material-design: true
   assets:
-    - assets/audios/alarma.mp3
+    - assets/audios/alarmaClasica.mp3
+    - assets/audios/despertarSuave.mp3
+    - assets/audios/alarmaUrgente.mp3
+    - assets/audios/alarmaNaturaleza.mp3
+    - assets/audios/alarmaTropical.mp3
     - assets/radius_marker.png
 
   fonts:

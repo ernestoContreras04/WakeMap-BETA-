@@ -19,7 +19,12 @@ class DatabaseHelper {
 
     // await deleteDatabase(path);
 
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path, 
+      version: 2, 
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
+    );
   }
 
   Future _createDB(Database db, int version) async {
@@ -36,13 +41,21 @@ class DatabaseHelper {
         latitud $realType,
         longitud $realType,
         rango $textType,
-        activa $intType
+        activa $intType,
+        sonido_id TEXT DEFAULT 'default'
       )
     ''');
     
     // Crear índices para optimizar consultas frecuentes
     await db.execute('CREATE INDEX idx_alarmas_activa ON alarmas(activa)');
     await db.execute('CREATE INDEX idx_alarmas_nombre ON alarmas(nombre)');
+  }
+
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Añadir campo sonido_id a la tabla existente
+      await db.execute('ALTER TABLE alarmas ADD COLUMN sonido_id TEXT DEFAULT "default"');
+    }
   }
 
   Future<int> insertAlarma(Map<String, dynamic> alarma) async {

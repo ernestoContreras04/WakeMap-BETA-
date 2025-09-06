@@ -123,7 +123,7 @@ class ThemeManager {
         }),
         trackColor: MaterialStateProperty.resolveWith((states) {
           if (states.contains(MaterialState.selected)) {
-            return primaryColor;
+            return const Color(0xFF4F46E5); // Azul más claro y vibrante para mejor contraste
           }
           return Colors.grey[300];
         }),

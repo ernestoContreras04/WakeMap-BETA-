@@ -11,6 +11,7 @@ class AlarmActivity : Activity() {
     private var mediaPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        android.util.Log.d("AlarmActivity", "🚀 ALARMACTIVITY CREADA")
         this.title = ""
         super.onCreate(savedInstanceState)
 
@@ -23,25 +24,37 @@ class AlarmActivity : Activity() {
 
         setContentView(R.layout.activity_alarm)
 
-        mediaPlayer = MediaPlayer.create(this, R.raw.alarma) 
-        mediaPlayer?.isLooping = true
-        mediaPlayer?.start()
+        // COMENTADO: Flutter se encarga de la reproducción de audio
+        // mediaPlayer = MediaPlayer.create(this, R.raw.alarma) 
+        // mediaPlayer?.isLooping = true
+        // mediaPlayer?.start()
 
         val btnStop = findViewById<Button>(R.id.btnStop)
         btnStop.setOnClickListener {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
-            mediaPlayer = null
-            val intent = Intent("com.example.tfg_definitivo2.ACTION_ALARM_STOPPED")
-            sendBroadcast(intent)
+            android.util.Log.d("AlarmActivity", "🛑 BOTÓN DETENER PRESIONADO")
+            
+            // COMENTADO: Flutter se encarga de detener el audio
+            // mediaPlayer?.stop()
+            // mediaPlayer?.release()
+            // mediaPlayer = null
+            
+            // SOLUCIÓN ALTERNATIVA: Usar Intent directo a MainActivity
+            android.util.Log.d("AlarmActivity", "📡 ENVIANDO INTENT DIRECTO A MAINACTIVITY")
+            val intent = Intent(this, com.example.tfg_definitivo2.MainActivity::class.java)
+            intent.putExtra("ACTION", "ALARM_STOPPED")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            startActivity(intent)
+            
+            android.util.Log.d("AlarmActivity", "✅ INTENT ENVIADO - Cerrando actividad")
             finish()
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-        mediaPlayer = null
+        // COMENTADO: Flutter se encarga de detener el audio
+        // mediaPlayer?.stop()
+        // mediaPlayer?.release()
+        // mediaPlayer = null
     }
 }
