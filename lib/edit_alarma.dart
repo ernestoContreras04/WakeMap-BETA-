@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tfg_definitivo2/widgets/alarma_form.dart';
+import 'package:tfg_definitivo2/l10n/app_localizations.dart';
 
 class EditAlarmaPage extends StatelessWidget {
   final Map<String, dynamic> alarma;
@@ -12,7 +13,7 @@ class EditAlarmaPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Editar Alarma',
+          AppLocalizations.of(context).editAlarm,
           style: TextStyle(
             color: Theme.of(context).textTheme.titleLarge?.color,
             fontWeight: FontWeight.w700,

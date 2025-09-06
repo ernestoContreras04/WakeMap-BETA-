@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:tfg_definitivo2/database_helper.dart';
 import 'package:tfg_definitivo2/theme_provider.dart';
+import 'package:tfg_definitivo2/l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -29,6 +30,13 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  List<Map<String, String>> _getLanguageItems() {
+    return [
+      {'value': 'es', 'label': AppLocalizations.of(context).spanish},
+      {'value': 'en', 'label': AppLocalizations.of(context).english},
+    ];
   }
 
   Future<void> _loadSettings() async {
@@ -71,8 +79,8 @@ class _SettingsPageState extends State<SettingsPage> {
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Caché limpiado correctamente'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).cacheClearedSuccessfully),
           backgroundColor: Colors.green,
         ),
       );
@@ -83,19 +91,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar todos los datos'),
-        content: const Text(
-          'Esta acción eliminará todas las alarmas y configuraciones. '
-          '¿Estás seguro de que quieres continuar?'
-        ),
+        title: Text(AppLocalizations.of(context).deleteAllData),
+        content: Text(AppLocalizations.of(context).deleteAllDataConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context).delete, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -108,8 +113,8 @@ class _SettingsPageState extends State<SettingsPage> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Todos los datos han sido eliminados'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).allDataDeleted),
             backgroundColor: Colors.red,
           ),
         );
@@ -124,8 +129,8 @@ class _SettingsPageState extends State<SettingsPage> {
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Permisos solicitados'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).permissionsRequested),
           backgroundColor: Colors.blue,
         ),
       );
@@ -137,7 +142,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Ajustes',
+          AppLocalizations.of(context).settings,
           style: TextStyle(
             color: Theme.of(context).textTheme.titleLarge?.color,
             fontWeight: FontWeight.w700,
@@ -153,12 +158,12 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeader('Notificaciones y Sonido'),
+            _buildSectionHeader(AppLocalizations.of(context).notificationsAndSound),
             _buildSettingsCard([
               _buildSwitchTile(
                 icon: CupertinoIcons.bell,
-                title: 'Notificaciones',
-                subtitle: 'Recibir notificaciones de alarmas',
+                title: AppLocalizations.of(context).notifications,
+                subtitle: AppLocalizations.of(context).receiveAlarmNotifications,
                 value: _notificationsEnabled,
                 onChanged: (value) {
                   setState(() => _notificationsEnabled = value);
@@ -167,8 +172,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               _buildSwitchTile(
                 icon: CupertinoIcons.speaker_2,
-                title: 'Sonido',
-                subtitle: 'Reproducir sonido de alarma',
+                title: AppLocalizations.of(context).sound,
+                subtitle: AppLocalizations.of(context).playAlarmSound,
                 value: _soundEnabled,
                 onChanged: (value) {
                   setState(() => _soundEnabled = value);
@@ -177,8 +182,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               _buildSwitchTile(
                 icon: CupertinoIcons.waveform,
-                title: 'Vibración',
-                subtitle: 'Vibrar al activar alarma',
+                title: AppLocalizations.of(context).vibration,
+                subtitle: AppLocalizations.of(context).vibrateOnAlarm,
                 value: _vibrationEnabled,
                 onChanged: (value) {
                   setState(() => _vibrationEnabled = value);
@@ -188,12 +193,12 @@ class _SettingsPageState extends State<SettingsPage> {
             ]),
             
             const SizedBox(height: 24),
-            _buildSectionHeader('Ubicación y Mapas'),
+            _buildSectionHeader(AppLocalizations.of(context).locationAndMaps),
             _buildSettingsCard([
               _buildSwitchTile(
                 icon: CupertinoIcons.location,
-                title: 'Servicios de ubicación',
-                subtitle: 'Permitir acceso a la ubicación',
+                title: AppLocalizations.of(context).locationServices,
+                subtitle: AppLocalizations.of(context).allowLocationAccess,
                 value: _locationEnabled,
                 onChanged: (value) {
                   setState(() => _locationEnabled = value);
@@ -202,8 +207,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               _buildSliderTile(
                 icon: CupertinoIcons.circle_grid_hex,
-                title: 'Radio por defecto',
-                subtitle: 'Distancia predeterminada para nuevas alarmas',
+                title: AppLocalizations.of(context).defaultRadius,
+                subtitle: AppLocalizations.of(context).defaultDistanceForNewAlarms,
                 value: _defaultRadius,
                 min: 50,
                 max: 500,
@@ -216,31 +221,30 @@ class _SettingsPageState extends State<SettingsPage> {
             ]),
 
             const SizedBox(height: 24),
-            _buildSectionHeader('Personalización'),
+            _buildSectionHeader(AppLocalizations.of(context).personalization),
             _buildSettingsCard([
               _buildDropdownTile(
                 icon: CupertinoIcons.globe,
-                title: 'Idioma',
-                subtitle: 'Seleccionar idioma de la aplicación',
+                title: AppLocalizations.of(context).language,
+                subtitle: AppLocalizations.of(context).selectAppLanguage,
                 value: _selectedLanguage,
-                items: const [
-                  {'value': 'es', 'label': 'Español'},
-                  {'value': 'en', 'label': 'English'},
-                ],
+                items: _getLanguageItems(),
                 onChanged: (value) {
                   setState(() => _selectedLanguage = value);
                   _saveSetting('selected_language', value);
+                  // Cambiar idioma en tiempo real
+                  Provider.of<ThemeProvider>(context, listen: false).setLanguage(value);
                 },
               ),
               _buildDropdownTile(
                 icon: CupertinoIcons.paintbrush,
-                title: 'Tema',
-                subtitle: 'Apariencia de la aplicación',
+                title: AppLocalizations.of(context).theme,
+                subtitle: AppLocalizations.of(context).appearance,
                 value: _selectedTheme,
-                items: const [
-                  {'value': 'light', 'label': 'Claro'},
-                  {'value': 'dark', 'label': 'Oscuro'},
-                  {'value': 'system', 'label': 'Sistema'},
+                items: [
+                  {'value': 'light', 'label': AppLocalizations.of(context).light},
+                  {'value': 'dark', 'label': AppLocalizations.of(context).dark},
+                  {'value': 'system', 'label': AppLocalizations.of(context).system},
                 ],
                 onChanged: (value) async {
                   setState(() => _selectedTheme = value);
@@ -254,12 +258,12 @@ class _SettingsPageState extends State<SettingsPage> {
             ]),
 
             const SizedBox(height: 24),
-            _buildSectionHeader('Rendimiento'),
+            _buildSectionHeader(AppLocalizations.of(context).performance),
             _buildSettingsCard([
               _buildSwitchTile(
                 icon: CupertinoIcons.play_circle,
-                title: 'Inicio automático',
-                subtitle: 'Iniciar aplicación al encender el dispositivo',
+                title: AppLocalizations.of(context).autoStart,
+                subtitle: AppLocalizations.of(context).startAppOnDeviceBoot,
                 value: _autoStartEnabled,
                 onChanged: (value) {
                   setState(() => _autoStartEnabled = value);
@@ -268,8 +272,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               _buildSwitchTile(
                 icon: CupertinoIcons.battery_charging,
-                title: 'Optimización de batería',
-                subtitle: 'Optimizar uso de batería',
+                title: AppLocalizations.of(context).batteryOptimization,
+                subtitle: AppLocalizations.of(context).optimizeBatteryUsage,
                 value: _batteryOptimizationEnabled,
                 onChanged: (value) {
                   setState(() => _batteryOptimizationEnabled = value);
@@ -278,8 +282,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               _buildSwitchTile(
                 icon: CupertinoIcons.cloud_download,
-                title: 'Caché de datos',
-                subtitle: 'Guardar datos para uso offline',
+                title: AppLocalizations.of(context).dataCache,
+                subtitle: AppLocalizations.of(context).saveDataForOfflineUse,
                 value: _cacheEnabled,
                 onChanged: (value) {
                   setState(() => _cacheEnabled = value);
@@ -289,56 +293,56 @@ class _SettingsPageState extends State<SettingsPage> {
             ]),
 
             const SizedBox(height: 24),
-            _buildSectionHeader('Permisos y Datos'),
+            _buildSectionHeader(AppLocalizations.of(context).permissionsAndData),
             _buildSettingsCard([
               _buildActionTile(
                 icon: CupertinoIcons.checkmark_shield,
-                title: 'Gestionar permisos',
-                subtitle: 'Configurar permisos de la aplicación',
+                title: AppLocalizations.of(context).managePermissions,
+                subtitle: AppLocalizations.of(context).configureAppPermissions,
                 onTap: _requestPermissions,
               ),
               _buildActionTile(
                 icon: CupertinoIcons.trash,
-                title: 'Limpiar caché',
-                subtitle: 'Eliminar datos temporales',
+                title: AppLocalizations.of(context).clearCache,
+                subtitle: AppLocalizations.of(context).deleteTemporaryData,
                 onTap: _clearCache,
               ),
               _buildActionTile(
                 icon: CupertinoIcons.delete_solid,
-                title: 'Eliminar todos los datos',
-                subtitle: 'Borrar alarmas y configuraciones',
+                title: AppLocalizations.of(context).deleteAllData,
+                subtitle: AppLocalizations.of(context).deleteAlarmsAndSettings,
                 onTap: _clearAllData,
                 isDestructive: true,
               ),
             ]),
 
             const SizedBox(height: 24),
-            _buildSectionHeader('Información'),
+            _buildSectionHeader(AppLocalizations.of(context).information),
             _buildSettingsCard([
               _buildInfoTile(
                 icon: CupertinoIcons.info_circle,
-                title: 'Versión',
+                title: AppLocalizations.of(context).version,
                 subtitle: '1.0.0',
               ),
               _buildActionTile(
                 icon: CupertinoIcons.doc_text,
-                title: 'Política de privacidad',
-                subtitle: 'Cómo protegemos tus datos',
+                title: AppLocalizations.of(context).privacyPolicy,
+                subtitle: AppLocalizations.of(context).howWeProtectYourData,
                 onTap: () {
                   // TODO: Implementar política de privacidad
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Próximamente disponible')),
+                    SnackBar(content: Text(AppLocalizations.of(context).comingSoon)),
                   );
                 },
               ),
               _buildActionTile(
                 icon: CupertinoIcons.question_circle,
-                title: 'Ayuda y soporte',
-                subtitle: 'Obtener ayuda con la aplicación',
+                title: AppLocalizations.of(context).helpAndSupport,
+                subtitle: AppLocalizations.of(context).getHelpWithApp,
                 onTap: () {
                   // TODO: Implementar ayuda
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Próximamente disponible')),
+                    SnackBar(content: Text(AppLocalizations.of(context).comingSoon)),
                   );
                 },
               ),
@@ -500,7 +504,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${value.toInt()} metros',
+            '${value.toInt()} ${AppLocalizations.of(context).meters}',
             style: TextStyle(
               color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w600,

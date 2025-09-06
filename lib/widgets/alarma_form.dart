@@ -4,9 +4,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as loc;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tfg_definitivo2/autocompletado.dart';
 import 'package:tfg_definitivo2/database_helper.dart';
 import 'package:tfg_definitivo2/env.dart';
+import 'package:tfg_definitivo2/l10n/app_localizations.dart';
 
 class AlarmaForm extends StatefulWidget {
   final Map<String, dynamic>? alarma;
@@ -52,7 +54,7 @@ class _AlarmaFormState extends State<AlarmaForm> {
       _loading = false;
       _updateMarkersAndCircles();
     } else {
-      _initLocation();
+      _initLocationAndDefaultRadius();
     }
 
     _rangoCtrl.addListener(() {
@@ -66,6 +68,36 @@ class _AlarmaFormState extends State<AlarmaForm> {
         _updatingFromText = false;
       }
     });
+  }
+
+  Future<void> _initLocationAndDefaultRadius() async {
+    try {
+      // Cargar rango predeterminado desde SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final defaultRadius = prefs.getDouble('default_radius') ?? 100.0;
+      
+      // Establecer el rango predeterminado
+      _radius = defaultRadius;
+      _rangoCtrl.text = defaultRadius.toInt().toString();
+      
+      // Solicitar permisos de ubicación
+      if (await _location.requestPermission() != loc.PermissionStatus.granted) {
+        _showMsg('Permiso de ubicación denegado');
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      
+      final locData = await _location.getLocation();
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _updateDestino(LatLng(locData.latitude!, locData.longitude!));
+        });
+      }
+    } catch (e) {
+      _showMsg('Error al obtener la ubicación');
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _initLocation() async {
@@ -196,16 +228,16 @@ class _AlarmaFormState extends State<AlarmaForm> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Eliminar Alarma'),
-        content: const Text('¿Estás seguro que quieres eliminar esta alarma?'),
+        title: Text(AppLocalizations.of(context).deleteAlarm),
+        content: Text(AppLocalizations.of(context).deleteAlarmConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar'),
+            child: Text(AppLocalizations.of(context).delete),
           ),
         ],
       ),
@@ -242,7 +274,7 @@ class _AlarmaFormState extends State<AlarmaForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLabel('Nombre de la alarma'),
+                _buildLabel(AppLocalizations.of(context).alarmName),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _nombreCtrl,
@@ -258,10 +290,10 @@ class _AlarmaFormState extends State<AlarmaForm> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   textInputAction: TextInputAction.next,
-                  validator: (value) => (value?.isEmpty ?? true) ? 'Campo requerido' : null,
+                  validator: (value) => (value?.isEmpty ?? true) ? AppLocalizations.of(context).requiredField : null,
                 ),
                 const SizedBox(height: 20),
-                _buildLabel('Ubicación'),
+                _buildLabel(AppLocalizations.of(context).location),
                 const SizedBox(height: 8),
                 LocationAutocomplete(
                   controller: _ubicacionCtrl,
@@ -270,7 +302,7 @@ class _AlarmaFormState extends State<AlarmaForm> {
                   initialValue: _ubicacionCtrl.text,
                 ),
                 const SizedBox(height: 20),
-                _buildLabel('Rango de activación (m)'),
+                _buildLabel(AppLocalizations.of(context).activationRange),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _rangoCtrl,
@@ -287,7 +319,7 @@ class _AlarmaFormState extends State<AlarmaForm> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   textInputAction: TextInputAction.done,
-                  validator: (value) => (value?.isEmpty ?? true) ? 'Campo requerido' : null,
+                  validator: (value) => (value?.isEmpty ?? true) ? AppLocalizations.of(context).requiredField : null,
                 ),
                 const SizedBox(height: 24),
                 Container(
@@ -360,7 +392,7 @@ class _AlarmaFormState extends State<AlarmaForm> {
                         child: ElevatedButton(
                           onPressed: _saveAlarma,
                           child: Text(
-                            _isEditMode ? 'Guardar Cambios' : 'Crear Alarma',
+                            _isEditMode ? AppLocalizations.of(context).saveChanges : AppLocalizations.of(context).createAlarmButton,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -387,8 +419,8 @@ class _AlarmaFormState extends State<AlarmaForm> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text(
-                              'Eliminar Alarma',
+                            child: Text(
+                              AppLocalizations.of(context).deleteAlarm,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,

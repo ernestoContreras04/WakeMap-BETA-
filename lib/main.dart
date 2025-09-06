@@ -17,6 +17,7 @@ import 'edit_alarma.dart';
 import 'settings_page.dart';
 import 'theme_manager.dart';
 import 'theme_provider.dart';
+import 'l10n/app_localizations.dart';
 
 class AlarmHelper {
   static const MethodChannel _channel = MethodChannel(
@@ -107,6 +108,9 @@ class _WakeMapAppState extends State<WakeMapApp> {
             theme: ThemeManager.getLightTheme(),
             darkTheme: ThemeManager.getDarkTheme(),
             themeMode: themeProvider.themeMode,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: themeProvider.locale,
             home: const HomePage(title: 'Wake-Map'),
             builder: (context, child) {
               // Actualizar UI del sistema cuando cambie el tema
@@ -292,7 +296,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                           widget.locationName!,
                           style: TextStyle(
                             fontSize: 28,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w900,  
                             color: Colors.white.withOpacity(0.9),
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -1028,7 +1032,7 @@ class _HomePageState extends State<HomePage> {
       return {
         'latitude': _currentLocation!.latitude!,
         'longitude': _currentLocation!.longitude!,
-        'locationName': locationName ?? 'Mi ubicación',
+        'locationName': locationName ?? AppLocalizations.of(context).myLocation,
       };
     }
     
@@ -1347,7 +1351,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Dirección: ${alarma['ubicacion'] ?? 'Desconocida'}',
+                        '${AppLocalizations.of(context).address}: ${alarma['ubicacion'] ?? AppLocalizations.of(context).unknown}',
                         style: TextStyle(
                           color: theme.textTheme.bodySmall?.color,
                           fontSize: 13,
@@ -1357,7 +1361,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Rango: ${alarma['rango'] ?? '-'} m',
+                        '${AppLocalizations.of(context).range}: ${alarma['rango'] ?? '-'} m',
                         style: TextStyle(
                           color: theme.textTheme.labelMedium?.color,
                           fontSize: 12,
@@ -1685,9 +1689,9 @@ class _HomePageState extends State<HomePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(CupertinoIcons.home, 'Home', true),
-          _buildNavItem(CupertinoIcons.add, 'Nueva', false),
-          _buildNavItem(CupertinoIcons.settings, 'Ajustes', false),
+          _buildNavItem(CupertinoIcons.home, AppLocalizations.of(context).home, true),
+          _buildNavItem(CupertinoIcons.add, AppLocalizations.of(context).newTab, false),
+          _buildNavItem(CupertinoIcons.settings, AppLocalizations.of(context).settings, false),
         ],
       ),
     );
@@ -1696,9 +1700,9 @@ class _HomePageState extends State<HomePage> {
   Widget _buildNavItem(IconData icon, String label, bool isActive) {
     return GestureDetector(
       onTap: () {
-        if (label == 'Nueva') {
+        if (label == AppLocalizations.of(context).newTab) {
           _showCreateAlarmaDialog();
-        } else if (label == 'Ajustes') {
+        } else if (label == AppLocalizations.of(context).settings) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const SettingsPage()),
@@ -1771,7 +1775,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 20),
             Text(
-              'No hay alarmas guardadas',
+              AppLocalizations.of(context).noAlarmsSaved,
               style: theme.textTheme.titleMedium?.copyWith(
                 color: Colors.grey[600],
                 fontWeight: FontWeight.w500,
@@ -1779,7 +1783,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Toca el botón + para crear tu primera alarma',
+              AppLocalizations.of(context).createFirstAlarm,
               style: TextStyle(
                 color: Colors.grey[500],
                 fontSize: 14,

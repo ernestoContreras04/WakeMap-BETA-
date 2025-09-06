@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tfg_definitivo2/widgets/alarma_form.dart';
+import 'package:tfg_definitivo2/l10n/app_localizations.dart';
 
 class CreateAlarmaPage extends StatelessWidget {
   const CreateAlarmaPage({super.key});
@@ -9,7 +10,7 @@ class CreateAlarmaPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Crear Alarma',
+          AppLocalizations.of(context).createAlarm,
           style: TextStyle(
             color: Theme.of(context).textTheme.titleLarge?.color,
             fontWeight: FontWeight.w700,
