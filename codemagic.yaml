@@ -1,0 +1,99 @@
+workflows:
+  ios-workflow:
+    name: WakeMap iOS Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        # Configuración de la aplicación
+        APP_ID: "com.example.tfg_definitivo2"
+        BUNDLE_ID: "com.example.tfg_definitivo2"
+        APP_NAME: "WakeMap"
+        
+        # Variables de entorno para APIs (si las necesitas)
+        # GOOGLE_MAPS_API_KEY: EncodedApiKey
+        
+      # Configuración de iOS
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: "com.example.tfg_definitivo2"
+        
+    scripts:
+      - name: Set up keychain to be used for codesigning
+        script: |
+          keychain initialize
+          
+      - name: Set up signing certificate
+        script: |
+          # Para desarrollo, puedes usar certificados de desarrollo
+          # Para distribución, necesitarás certificados de distribución
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          
+      - name: Set up provisioning profile
+        script: |
+          # Configurar perfil de aprovisionamiento
+          PROFILE_PATH="$(mktemp -d)/profile.mobileprovision"
+          echo "$APP_STORE_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_PATH"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(/usr/bin/security cms -D -i "$PROFILE_PATH"))
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
+          
+      - name: Install pods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+          
+      - name: Flutter analyze
+        script: |
+          flutter packages get
+          flutter analyze
+          
+      - name: Flutter unit tests
+        script: |
+          flutter test
+          
+      - name: Build ipa for distribution
+        script: |
+          flutter build ipa --release \
+            --build-name=1.0.0 \
+            --build-number=1 \
+            --export-options-plist=/Users/builder/export_options.plist
+            
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - flutter_drive.log
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+      
+    publishing:
+      # Configuración para subir a App Store Connect (opcional)
+      app_store_connect:
+        auth: integration
+        
+        # Configuración para TestFlight (opcional)
+        submit_to_testflight: true
+        beta_groups: # Lista de grupos beta
+          - group name 1
+          - group name 2
+          
+        # Configuración para App Store (opcional)
+        submit_to_app_store: false
+        
+      # Configuración para notificaciones
+      email:
+        recipients:
+          - ernesto.contreras@example.com
+        notify:
+          success: true
+          failure: true
+          
+      # Slack (opcional)
+      # slack:
+      #   channel: '#ios-releases'
+      #   notify_on_build_start: true
+      #   notify:
+      #     success: true
+      #     failure: true
