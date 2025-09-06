@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		/* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* AppDelegate.swift */; };
-		/* AlarmViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C147001CF9000F007C117D /* AlarmViewController.swift */; };
-		/* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C146FC1CF9000F007C117D /* GeneratedPluginRegistrant.swift */; };
-		/* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FE1CF9000F007C117D /* LaunchScreen.storyboard */; };
-		/* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* Main.storyboard */; };
-		/* alarma.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 97C147011CF9000F007C117D /* alarma.mp3 */; };
+		97C146FD1CF9000F007C117D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* AppDelegate.swift */; };
+		97C147001CF9000F007C117D /* AlarmViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C147001CF9000F007C117D /* AlarmViewController.swift */; };
+		97C146FC1CF9000F007C117D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C146FC1CF9000F007C117D /* GeneratedPluginRegistrant.swift */; };
+		97C146FE1CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FE1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		97C146FF1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* Main.storyboard */; };
+		97C147011CF9000F007C117D /* alarma.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 97C147011CF9000F007C117D /* alarma.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		/* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		/* AlarmViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmViewController.swift; sourceTree = "<group>"; };
-		/* GeneratedPluginRegistrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedPluginRegistrant.swift; sourceTree = "<group>"; };
-		/* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		/* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		/* Main.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
-		/* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		/* alarma.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = alarma.mp3; sourceTree = "<group>"; };
-		/* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = GoogleService-Info.plist; sourceTree = "<group>"; };
-		/* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		97C146FD1CF9000F007C117D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		97C147001CF9000F007C117D /* AlarmViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmViewController.swift; sourceTree = "<group>"; };
+		97C146FC1CF9000F007C117D /* GeneratedPluginRegistrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedPluginRegistrant.swift; sourceTree = "<group>"; };
+		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		97C146FE1CF9000F007C117D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		97C146FF1CF9000F007C117D /* Main.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
+		97C147031CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		97C147011CF9000F007C117D /* alarma.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = alarma.mp3; sourceTree = "<group>"; };
+		97C147041CF9000F007C117D /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = GoogleService-Info.plist; sourceTree = "<group>"; };
+		97C147051CF9000F007C117D /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		/* Frameworks */ = {
+		97C146FA1CF9000F007C117D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -39,48 +39,48 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		/* Runner */ = {
+		97C146F41CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
-				/* AppDelegate.swift */,
-				/* AlarmViewController.swift */,
-				/* GeneratedPluginRegistrant.swift */,
-				/* Info.plist */,
-				/* Main.storyboard */,
-				/* LaunchScreen.storyboard */,
-				/* GoogleService-Info.plist */,
-				/* Runner.entitlements */,
-				/* alarma.mp3 */,
+				97C146FD1CF9000F007C117D /* AppDelegate.swift */,
+				97C147001CF9000F007C117D /* AlarmViewController.swift */,
+				97C146FC1CF9000F007C117D /* GeneratedPluginRegistrant.swift */,
+				97C147021CF9000F007C117D /* Info.plist */,
+				97C146FF1CF9000F007C117D /* Main.storyboard */,
+				97C146FE1CF9000F007C117D /* LaunchScreen.storyboard */,
+				97C147041CF9000F007C117D /* GoogleService-Info.plist */,
+				97C147051CF9000F007C117D /* Runner.entitlements */,
+				97C147011CF9000F007C117D /* alarma.mp3 */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
 		};
-		/* Products */ = {
+		97C146F31CF9000F007C117D /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				/* Runner.app */,
+				97C147031CF9000F007C117D /* Runner.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		/* Root */ = {
+		97C146F21CF9000F007C117D /* Root */ = {
 			isa = PBXGroup;
 			children = (
-				/* Runner */,
-				/* Products */,
+				97C146F41CF9000F007C117D /* Runner */,
+				97C146F31CF9000F007C117D /* Products */,
 			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		/* Runner */ = {
+		97C146ED1CF9000F007C117D /* Runner */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
-				/* Sources */,
-				/* Frameworks */,
-				/* Resources */,
+				97C146EA1CF9000F007C117D /* Sources */,
+				97C146FA1CF9000F007C117D /* Frameworks */,
+				97C146FB1CF9000F007C117D /* Resources */,
 			);
 			buildRules = (
 			);
@@ -88,13 +88,13 @@
 			);
 			name = Runner;
 			productName = Runner;
-			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
+			productReference = 97C147031CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		/* Project object */ = {
+		97C146E91CF9000F007C117D /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
@@ -113,8 +113,8 @@
 				en,
 				Base,
 			);
-			mainGroup = 97C146EC1CF9000F007C117D /* Root */;
-			productRefGroup = 97C146EE1CF9000F007C117D /* Products */;
+			mainGroup = 97C146F21CF9000F007C117D /* Root */;
+			productRefGroup = 97C146F31CF9000F007C117D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -124,33 +124,33 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		/* Resources */ = {
+		97C146FB1CF9000F007C117D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				/* LaunchScreen.storyboard in Resources */,
-				/* Main.storyboard in Resources */,
-				/* alarma.mp3 in Resources */,
+				97C146FE1CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
+				97C146FF1CF9000F007C117D /* Main.storyboard in Resources */,
+				97C147011CF9000F007C117D /* alarma.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		/* Sources */ = {
+		97C146EA1CF9000F007C117D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				/* AppDelegate.swift in Sources */,
-				/* AlarmViewController.swift in Sources */,
-				/* GeneratedPluginRegistrant.swift in Sources */,
+				97C146FD1CF9000F007C117D /* AppDelegate.swift in Sources */,
+				97C147001CF9000F007C117D /* AlarmViewController.swift in Sources */,
+				97C146FC1CF9000F007C117D /* GeneratedPluginRegistrant.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		/* Debug */ = {
+		97C147031CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -190,7 +190,7 @@
 			};
 			name = Debug;
 		};
-		/* Release */ = {
+		97C147041CF9000F007C117D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -230,7 +230,7 @@
 			};
 			name = Release;
 		};
-		/* Debug */ = {
+		97C146F11CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -293,7 +293,7 @@
 			};
 			name = Debug;
 		};
-		/* Release */ = {
+		97C146F21CF9000F007C117D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -352,20 +352,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		/* Build configuration list for PBXNativeTarget "Runner" */ = {
+		97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				/* Debug */,
-				/* Release */,
+				97C147031CF9000F007C117D /* Debug */,
+				97C147041CF9000F007C117D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		/* Build configuration list for PBXProject "Runner" */ = {
+		97C146F01CF9000F007C117D /* Build configuration list for PBXProject "Runner" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				/* Debug */,
-				/* Release */,
+				97C146F11CF9000F007C117D /* Debug */,
+				97C146F21CF9000F007C117D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
