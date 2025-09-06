@@ -9,10 +9,14 @@ import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 
 import 'database_helper.dart';
 import 'create_alarma_page.dart';
 import 'edit_alarma.dart';
+import 'settings_page.dart';
+import 'theme_manager.dart';
+import 'theme_provider.dart';
 
 class AlarmHelper {
   static const MethodChannel _channel = MethodChannel(
@@ -36,52 +40,84 @@ class AlarmHelper {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ThemeManager.initialize();
   runApp(const WakeMapApp());
 }
 
-class WakeMapApp extends StatelessWidget {
+class WakeMapApp extends StatefulWidget {
   const WakeMapApp({super.key});
   static final navigatorKey = GlobalKey<NavigatorState>();
 
   @override
+  State<WakeMapApp> createState() => _WakeMapAppState();
+}
+
+class _WakeMapAppState extends State<WakeMapApp> {
+  final ThemeProvider _themeProvider = ThemeProvider();
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeTheme();
+  }
+
+  Future<void> _initializeTheme() async {
+    await _themeProvider.initialize();
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+      // Escuchar cambios en el tema del sistema
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateSystemUI();
+      });
+    }
+  }
+
+  void _updateSystemUI() {
+    if (mounted) {
+      ThemeManager.updateSystemUIOverlayStyle(context);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const seedColor = Color(0xFF0A84FF);
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'Wake-Map',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seedColor, brightness: Brightness.light),
-        useMaterial3: true,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF7F8FA),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: true,
-          foregroundColor: Colors.black,
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
+    if (!_isInitialized) {
+      return MaterialApp(
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: const Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+            ),
           ),
         ),
-        textTheme: const TextTheme(
-          titleLarge: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 34,
-            fontFamily: 'MiFuente1',
-          ),
-          bodyMedium: TextStyle(fontSize: 16),
-          titleMedium: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-            fontFamily: 'MiFuente2',
-          ),
-        ),
+      );
+    }
+
+    return ChangeNotifierProvider<ThemeProvider>(
+      create: (_) => _themeProvider,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            navigatorKey: WakeMapApp.navigatorKey,
+            title: 'Wake-Map',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeManager.getLightTheme(),
+            darkTheme: ThemeManager.getDarkTheme(),
+            themeMode: themeProvider.themeMode,
+            home: const HomePage(title: 'Wake-Map'),
+            builder: (context, child) {
+              // Actualizar UI del sistema cuando cambie el tema
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                ThemeManager.updateSystemUIOverlayStyle(context);
+              });
+              return child!;
+            },
+          );
+        },
       ),
-      home: const HomePage(title: 'Wake-Map'),
     );
   }
 }
@@ -89,10 +125,12 @@ class WakeMapApp extends StatelessWidget {
 class WeatherWidget extends StatefulWidget {
   final double latitude;
   final double longitude;
+  final String? locationName;
 
   const WeatherWidget({
     required this.latitude,
     required this.longitude,
+    this.locationName,
     Key? key,
   }) : super(key: key);
 
@@ -204,57 +242,98 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     }
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+        gradient: LinearGradient(
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? [const Color(0xFF1E3A8A), const Color(0xFF1E40AF)]
+              : [Colors.blue[400]!, Colors.blue[600]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: Theme.of(context).brightness == Brightness.dark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 15,
+                  offset: Offset(0, 8),
+                ),
+              ],
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              CupertinoIcons.thermometer,
-              size: 24,
-              color: Colors.orange,
-            ),
-          ),
-          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Temperatura: ${_temperature?.toStringAsFixed(1) ?? '--'} °C',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      '+${_temperature?.toStringAsFixed(0) ?? '--'}°C',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (widget.locationName != null) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          widget.locationName!,
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Viento: ${_windspeed?.toStringAsFixed(1) ?? '--'} km/h',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
+                Row(  
+                  children: [
+                    Icon(
+                      CupertinoIcons.cloud_sun,
+                      color: Colors.white.withOpacity(0.9),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Low cloudiness',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ],
+            ),
+          ),
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(
+              CupertinoIcons.cloud_sun_fill,
+              color: Colors.white,
+              size: 28,
             ),
           ),
         ],
@@ -276,13 +355,14 @@ class _HomePageState extends State<HomePage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   GoogleMapController? _mapController;
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   LocationData? _currentLocation, _lastLocation;
   final Set<Polyline> _polylines = {};
   final Set<Marker> _markers = {};
   final Set<Circle> _circles = {};
   final List<Map<String, dynamic>> _alarmas = [];
-  final Set<int> _pinnedAlarmIds = <int>{};
+  final List<int> _pinnedAlarmIds = <int>[];
+  final GlobalKey<AnimatedListState> _animatedListKey = GlobalKey<AnimatedListState>();
+  int? _lastActivatedAlarmId; // Para detectar qué alarma se activó recientemente
 
   Map<String, dynamic>? _lastDeletedAlarma;
   List<LatLng> _lastRoute = [];
@@ -326,27 +406,74 @@ class _HomePageState extends State<HomePage> {
       try {
         final list = (jsonDecode(raw) as List).cast<int>();
         _pinnedAlarmIds.addAll(list);
-      } catch (_) {}
+        print('Pinned alarms cargadas: $_pinnedAlarmIds');
+      } catch (e) {
+        print('Error cargando pinned alarms: $e');
+      }
+    } else {
+      print('No hay pinned alarms guardadas');
     }
   }
 
   Future<void> _savePinnedAlarms() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('pinned_alarm_ids', jsonEncode(_pinnedAlarmIds.toList()));
+    final jsonString = jsonEncode(_pinnedAlarmIds.toList());
+    await prefs.setString('pinned_alarm_ids', jsonString);
+    print('Pinned alarms guardadas: $jsonString');
+  }
+
+  Future<void> _unpinAlarma(int id) async {
+    _pinnedAlarmIds.remove(id);
+    await _savePinnedAlarms();
+    await _loadAlarmas();
   }
 
   int _compareAlarmas(Map<String, dynamic> a, Map<String, dynamic> b) {
     final aId = (a['id'] ?? -1) as int;
     final bId = (b['id'] ?? -1) as int;
-    final ap = _pinnedAlarmIds.contains(aId) ? 1 : 0;
-    final bp = _pinnedAlarmIds.contains(bId) ? 1 : 0;
-    if (ap != bp) return bp - ap; // Pinned primero
-    final ai = (a['activa'] ?? 0) as int;
-    final bi = (b['activa'] ?? 0) as int;
-    if (ai != bi) return bi - ai; // Activas después dentro de pinned/no pinned
-    final an = (a['nombre'] ?? '').toString().toLowerCase();
-    final bn = (b['nombre'] ?? '').toString().toLowerCase();
-    return an.compareTo(bn);
+    final aIsPinned = _pinnedAlarmIds.contains(aId);
+    final bIsPinned = _pinnedAlarmIds.contains(bId);
+    
+    print('Comparando: ${a['nombre']} (ID: $aId, pinned: $aIsPinned) vs ${b['nombre']} (ID: $bId, pinned: $bIsPinned)');
+    
+    // 1. PRIORIDAD MÁXIMA: Alarmas pinned (usadas recientemente) SIEMPRE primero
+    if (aIsPinned && !bIsPinned) {
+      print('  -> ${a['nombre']} va primero (pinned)');
+      return -1; // a va antes que b
+    }
+    if (!aIsPinned && bIsPinned) {
+      print('  -> ${b['nombre']} va primero (pinned)');
+      return 1; // b va antes que a
+    }
+    
+    // 2. Si ambas son pinned, ordenar por posición en la lista (más reciente primero)
+    if (aIsPinned && bIsPinned) {
+      final aIndex = _pinnedAlarmIds.indexOf(aId);
+      final bIndex = _pinnedAlarmIds.indexOf(bId);
+      final result = aIndex.compareTo(bIndex);
+      print('  -> Orden por uso reciente: $aIndex vs $bIndex = $result');
+      return result;
+    }
+    
+    // 3. Si ninguna es pinned, ordenar por activa
+    final aIsActive = (a['activa'] ?? 0) == 1;
+    final bIsActive = (b['activa'] ?? 0) == 1;
+    
+    if (aIsActive && !bIsActive) {
+      print('  -> ${a['nombre']} va primero (activa)');
+      return -1;
+    }
+    if (!aIsActive && bIsActive) {
+      print('  -> ${b['nombre']} va primero (activa)');
+      return 1;
+    }
+    
+    // 4. Finalmente, orden alfabético
+    final aName = (a['nombre'] ?? '').toString().toLowerCase();
+    final bName = (b['nombre'] ?? '').toString().toLowerCase();
+    final result = aName.compareTo(bName);
+    print('  -> Orden alfabético: $result');
+    return result;
   }
 
   Future<bool> _requestPermission() async {
@@ -460,19 +587,49 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadAlarmas() async {
+    print('=== CARGANDO ALARMAS ===');
+    
+    // Asegurarse de que las alarmas pinned estén cargadas
+    await _loadPinnedAlarms();
+    
     final alarmas = await DatabaseHelper.instance.getAlarmas();
     if (!mounted) return;
+    
+    print('Alarmas cargadas desde BD: ${alarmas.length}');
+    print('Pinned IDs: $_pinnedAlarmIds');
+    
+    // Debug: mostrar estado inicial de cada alarma
+    for (var alarma in alarmas) {
+      final isPinned = _pinnedAlarmIds.contains(alarma['id']);
+      final isActive = (alarma['activa'] ?? 0) == 1;
+      print('  ${alarma['nombre']} (ID: ${alarma['id']}) - Pinned: $isPinned, Activa: $isActive');
+    }
+    
     final activa = alarmas.firstWhere(
       (a) => a['activa'] == 1,
       orElse: () => {},
     );
+    
     // Crear una lista mutable para ordenar
     final alarmasList = List<Map<String, dynamic>>.from(alarmas);
+    
+    print('Ordenando alarmas...');
     // Ordenar según reglas: pinned -> activa -> nombre
     alarmasList.sort(_compareAlarmas);
+    
+    // Debug: imprimir alarmas después del ordenamiento
+    print('=== ORDEN FINAL ===');
+    for (var i = 0; i < alarmasList.length; i++) {
+      final alarma = alarmasList[i];
+      final isPinned = _pinnedAlarmIds.contains(alarma['id']);
+      final isActive = (alarma['activa'] ?? 0) == 1;
+      print('$i: ${alarma['nombre']} (ID: ${alarma['id']}) - Pinned: $isPinned, Activa: $isActive');
+    }
+    
+    // Animar los cambios en la lista
+    _animateListChanges(alarmasList);
+    
     setState(() {
-      _alarmas.clear();
-      _alarmas.addAll(alarmasList);
       _centered = false;
       _weatherKey = activa.isNotEmpty
           ? 'active_${activa['id']}'
@@ -481,6 +638,56 @@ class _HomePageState extends State<HomePage> {
               : 'default';
     });
     _drawRoute();
+  }
+
+  void _animateListChanges(List<Map<String, dynamic>> newAlarmasList) {
+    // Crear mapas para comparar posiciones
+    final Map<int, int> oldPositions = {};
+    final Map<int, int> newPositions = {};
+    
+    // Mapear posiciones antiguas
+    for (int i = 0; i < _alarmas.length; i++) {
+      oldPositions[_alarmas[i]['id']] = i;
+    }
+    
+    // Mapear posiciones nuevas
+    for (int i = 0; i < newAlarmasList.length; i++) {
+      newPositions[newAlarmasList[i]['id']] = i;
+    }
+    
+    // Encontrar alarmas que han cambiado de posición
+    final List<int> movedAlarmIds = [];
+    for (final alarma in newAlarmasList) {
+      final id = alarma['id'];
+      if (oldPositions.containsKey(id) && 
+          oldPositions[id] != newPositions[id]) {
+        movedAlarmIds.add(id);
+      }
+    }
+    
+    // Actualizar la lista
+    _alarmas.clear();
+    _alarmas.addAll(newAlarmasList);
+    
+    if (movedAlarmIds.isNotEmpty) {
+      print('Alarmas que se movieron: $movedAlarmIds');
+    }
+  }
+
+  Widget _buildAnimatedAlarmaCard(Map<String, dynamic> alarma, Animation<double> animation, ThemeData theme) {
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(-1, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeInOut,
+      )),
+      child: FadeTransition(
+        opacity: animation,
+        child: _buildAlarmaCard(alarma, theme),
+      ),
+    );
   }
 
   Future<void> _deleteAlarma(int id) async {
@@ -510,84 +717,53 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _toggleAlarmaActiva(int id, bool activar) async {
-    // 1) Actualizar en BD
-    for (final a in _alarmas) {
-      await DatabaseHelper.instance.updateAlarma({
-        ...a,
-        'activa': (activar && a['id'] == id) ? 1 : 0,
-      });
+    print('=== TOGGLE ALARMA ===');
+    print('ID: $id, Activar: $activar');
+    print('Pinned IDs ANTES: $_pinnedAlarmIds');
+    
+    // 1) Actualizar todas las alarmas en BD
+    for (final alarma in _alarmas) {
+      if (activar && alarma['id'] == id) {
+        // Activar solo la alarma seleccionada
+        await DatabaseHelper.instance.updateAlarma({
+          ...alarma,
+          'activa': 1,
+        });
+        print('Activada: ${alarma['nombre']}');
+      } else {
+        // Desactivar todas las demás alarmas
+        await DatabaseHelper.instance.updateAlarma({
+          ...alarma,
+          'activa': 0,
+        });
+        if (alarma['activa'] == 1) {
+          print('Desactivada: ${alarma['nombre']}');
+        }
+      }
     }
-
-    // 2) Actualizar en memoria y animar movimiento visual
-    final oldIndex = _alarmas.indexWhere((a) => a['id'] == id);
-    if (oldIndex == -1) {
-      // Fallback a recarga si no se encuentra
-      if (mounted) _loadAlarmas();
-      return;
-    }
+    print('Base de datos actualizada');
 
     // Si se activa, fijarla como "pinned" para que quede arriba incluso al desactivar
     if (activar) {
-      _pinnedAlarmIds.add(id);
-      _savePinnedAlarms();
+      // Remover si ya existe para evitar duplicados
+      _pinnedAlarmIds.remove(id);
+      // Añadir al principio de la lista (posición 0) para que sea la más reciente
+      _pinnedAlarmIds.insert(0, id);
+      // Guardar el ID de la alarma que se activó para animación especial
+      _lastActivatedAlarmId = id;
+      await _savePinnedAlarms();
+      print('Añadido a pinned (posición 0): $id');
+    } else {
+      // Si se desactiva, limpiar el ID de activación
+      _lastActivatedAlarmId = null;
     }
 
-    // Reflejar cambios de activa en memoria
-    for (var i = 0; i < _alarmas.length; i++) {
-      _alarmas[i] = {
-        ..._alarmas[i],
-        'activa': (activar && _alarmas[i]['id'] == id) ? 1 : 0,
-      };
-    }
-
-    // Calcular nuevo índice según regla: activa primero, luego por nombre ASC
-    List<Map<String, dynamic>> targetOrder = List<Map<String, dynamic>>.from(_alarmas);
-    targetOrder.sort(_compareAlarmas);
-    final item = _alarmas.firstWhere((a) => a['id'] == id);
-    final newIndex = targetOrder.indexWhere((a) => a['id'] == id);
-
-    if (newIndex == -1 || newIndex == oldIndex) {
-      if (mounted) setState(() => _centered = false);
-      // Redibujar ruta/clima sin animación si no hay movimiento
-      _weatherKey = (item['activa'] == 1)
-          ? 'active_${item['id']}'
-          : (_currentLocation != null
-              ? 'current_${_currentLocation!.latitude}_${_currentLocation!.longitude}'
-              : 'default');
-      _drawRoute();
-      return;
-    }
-
-    // Animar: quitar del índice viejo e insertar en el nuevo
-    final removedItem = _alarmas.removeAt(oldIndex);
-    _listKey.currentState?.removeItem(
-      oldIndex,
-      (context, animation) => SizeTransition(
-        sizeFactor: animation,
-        child: _buildAlarmaCard(removedItem, Theme.of(context)),
-      ),
-      duration: const Duration(milliseconds: 120),
-    );
-
-    // Insertar tras pequeña espera para que la animación de salida termine
-    Future.delayed(const Duration(milliseconds: 160), () {
-      _alarmas.insert(newIndex, removedItem);
-      _listKey.currentState?.insertItem(
-        newIndex,
-        duration: const Duration(milliseconds: 180),
-      );
-      if (mounted) {
-        setState(() {
-          _centered = false;
-          _weatherKey = (removedItem['activa'] == 1)
-              ? 'active_${removedItem['id']}'
-              : (_currentLocation != null
-                  ? 'current_${_currentLocation!.latitude}_${_currentLocation!.longitude}'
-                  : 'default');
-        });
-      }
-      _drawRoute();
-    });
+    print('Pinned IDs DESPUÉS: $_pinnedAlarmIds');
+    
+    // Recargar alarmas para reflejar cambios
+    print('Recargando alarmas...');
+    await _loadAlarmas();
+    print('=== FIN TOGGLE ===');
   }
 
   Future<void> _drawRoute() async {
@@ -787,33 +963,329 @@ class _HomePageState extends State<HomePage> {
     return const LatLng(40.416775, -3.703790); // Madrid como ubicación predeterminada
   }
 
-  Widget _buildAlarmaCard(Map<String, dynamic> alarma, ThemeData theme) {
+  Future<String?> _getLocationName(double latitude, double longitude) async {
+    // Generar clave de caché para el nombre de ubicación
+    final cacheKey = 'location_name_${latitude.toStringAsFixed(3)}_${longitude.toStringAsFixed(3)}';
+    final prefs = await SharedPreferences.getInstance();
+    final cachedName = prefs.getString(cacheKey);
+    final cachedTime = prefs.getInt('${cacheKey}_time') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    
+    // Si hay nombre en caché y tiene menos de 1 hora, usarlo
+    if (cachedName != null && (now - cachedTime) < 3600000) {
+      return cachedName;
+    }
+
+    try {
+      final url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=$latitude,$longitude&key=AIzaSyB5Nc_EBy8tO9Wyh0K0B96RDkN9d-MET_4&language=es';
+      final response = await http.get(Uri.parse(url));
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['results'].isNotEmpty) {
+          final result = data['results'][0];
+          String locationName = result['formatted_address'];
+          
+          // Simplificar el nombre si es muy largo
+          if (locationName.length > 30) {
+            final components = locationName.split(',');
+            if (components.length >= 2) {
+              locationName = '${components[0].trim()}, ${components[1].trim()}';
+            }
+          }
+          
+          // Guardar en caché
+          await prefs.setString(cacheKey, locationName);
+          await prefs.setInt('${cacheKey}_time', now);
+          
+          return locationName;
+        }
+      }
+    } catch (e) {
+      print('Error obteniendo nombre de ubicación: $e');
+    }
+    
+    return null;
+  }
+
+  Future<Map<String, dynamic>> _getWeatherLocationData() async {
+    final activa = _alarmas.firstWhere(
+      (a) => a['activa'] == 1,
+      orElse: () => {},
+    );
+    
+    if (activa.isNotEmpty) {
+      final locationName = await _getLocationName(activa['latitud'], activa['longitud']);
+      return {
+        'latitude': activa['latitud'],
+        'longitude': activa['longitud'],
+        'locationName': locationName ?? activa['nombre'] ?? 'Ubicación de alarma',
+      };
+    }
+    
+    if (_currentLocation != null) {
+      final locationName = await _getLocationName(_currentLocation!.latitude!, _currentLocation!.longitude!);
+      return {
+        'latitude': _currentLocation!.latitude!,
+        'longitude': _currentLocation!.longitude!,
+        'locationName': locationName ?? 'Mi ubicación',
+      };
+    }
+    
+    return {
+      'latitude': 40.416775,
+      'longitude': -3.703790,
+      'locationName': 'Madrid, España',
+    };
+  }
+
+  String? _getMapStyle() {
+    final brightness = Theme.of(context).brightness;
+    if (brightness == Brightness.dark) {
+      return '''
+        [
+          {
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#212121"
+              }
+            ]
+          },
+          {
+            "elementType": "labels.icon",
+            "stylers": [
+              {
+                "visibility": "off"
+              }
+            ]
+          },
+          {
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "elementType": "labels.text.stroke",
+            "stylers": [
+              {
+                "color": "#212121"
+              }
+            ]
+          },
+          {
+            "featureType": "administrative",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "featureType": "administrative.country",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#9e9e9e"
+              }
+            ]
+          },
+          {
+            "featureType": "administrative.land_parcel",
+            "stylers": [
+              {
+                "visibility": "off"
+              }
+            ]
+          },
+          {
+            "featureType": "administrative.locality",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#bdbdbd"
+              }
+            ]
+          },
+          {
+            "featureType": "poi",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "featureType": "poi.park",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#181818"
+              }
+            ]
+          },
+          {
+            "featureType": "poi.park",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#616161"
+              }
+            ]
+          },
+          {
+            "featureType": "poi.park",
+            "elementType": "labels.text.stroke",
+            "stylers": [
+              {
+                "color": "#1b1b1b"
+              }
+            ]
+          },
+          {
+            "featureType": "road",
+            "elementType": "geometry.fill",
+            "stylers": [
+              {
+                "color": "#2c2c2c"
+              }
+            ]
+          },
+          {
+            "featureType": "road",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#8a8a8a"
+              }
+            ]
+          },
+          {
+            "featureType": "road.arterial",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#373737"
+              }
+            ]
+          },
+          {
+            "featureType": "road.highway",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#3c3c3c"
+              }
+            ]
+          },
+          {
+            "featureType": "road.highway.controlled_access",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#4e4e4e"
+              }
+            ]
+          },
+          {
+            "featureType": "road.local",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#616161"
+              }
+            ]
+          },
+          {
+            "featureType": "transit",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "featureType": "water",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#000000"
+              }
+            ]
+          },
+          {
+            "featureType": "water",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#3d3d3d"
+              }
+            ]
+          }
+        ]
+      ''';
+    }
+    return null; // Usar estilo por defecto para modo claro
+  }
+
+  Widget _buildAlarmaCard(Map<String, dynamic> alarma, ThemeData theme, {Key? key}) {
     final isActive = alarma['activa'] == 1;
     final isPinned = _pinnedAlarmIds.contains(alarma['id']);
+    final isRecentlyActivated = _lastActivatedAlarmId == alarma['id'];
     
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      key: key,
+      duration: Duration(milliseconds: isRecentlyActivated ? 800 : 300),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: isActive 
-            ? Border.all(color: theme.colorScheme.primary.withOpacity(0.3), width: 2)
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(16),
+        border: isRecentlyActivated 
+            ? Border.all(
+                color: theme.colorScheme.primary.withOpacity(0.8),
+                width: 2,
+              )
             : null,
-        boxShadow: [
-          BoxShadow(
-            color: isActive 
-                ? theme.colorScheme.primary.withOpacity(0.1)
-                : Colors.black12,
-            blurRadius: isActive ? 15 : 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: isRecentlyActivated
+            ? [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: theme.brightness == Brightness.dark
+                      ? Colors.black.withOpacity(0.3)
+                      : Colors.black12,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : theme.brightness == Brightness.dark
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           onTap: () async {
             final updated = await Navigator.push(
               context,
@@ -852,76 +1324,32 @@ class _HomePageState extends State<HomePage> {
             if (confirm == true) await _deleteAlarma(alarma['id']);
           },
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: isActive 
-                        ? theme.colorScheme.primary.withOpacity(0.15)
-                        : Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    CupertinoIcons.location_solid,
-                    color: isActive ? theme.colorScheme.primary : Colors.grey[600],
-                    size: 24,
-                  ),
+                Icon(
+                  CupertinoIcons.location_solid,
+                  color: theme.textTheme.bodySmall?.color,
+                  size: 20,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              alarma['nombre'] ?? 'Sin nombre',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (isPinned) 
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'FIJA',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.amber,
-                                ),
-                              ),
-                            ),
-                          const SizedBox(width: 8),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              isActive ? CupertinoIcons.bell_solid : CupertinoIcons.bell,
-                              key: ValueKey(isActive),
-                              size: 20,
-                              color: isActive ? theme.colorScheme.primary : Colors.grey[400],
-                            ),
-                          ),
-                        ],
+                      Text(
+                        alarma['nombre'] ?? 'Sin nombre',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Text(
                         'Dirección: ${alarma['ubicacion'] ?? 'Desconocida'}',
-                        style: const TextStyle(
-                          color: Colors.black54,
+                        style: TextStyle(
+                          color: theme.textTheme.bodySmall?.color,
                           fontSize: 13,
                         ),
                         maxLines: 1,
@@ -930,23 +1358,18 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 2),
                       Text(
                         'Rango: ${alarma['rango'] ?? '-'} m',
-                        style: const TextStyle(
-                          color: Colors.black45,
+                        style: TextStyle(
+                          color: theme.textTheme.labelMedium?.color,
                           fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                AnimatedScale(
-                  scale: isActive ? 1.1 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Switch(
-                    activeColor: theme.colorScheme.primary,
-                    value: isActive,
-                    onChanged: (val) => _toggleAlarmaActiva(alarma['id'], val),
-                  ),
+                Switch(
+                  activeColor: theme.colorScheme.primary,
+                  value: isActive,
+                  onChanged: (val) => _toggleAlarmaActiva(alarma['id'], val),
                 ),
               ],
             ),
@@ -960,142 +1383,369 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.title,
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: Colors.black,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        centerTitle: true,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 400),
-        transitionBuilder: (child, animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.1),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header personalizado
+            _buildCustomHeader(theme),
+            // Contenido principal
+            Expanded(
+              child: _buildMainContent(theme),
             ),
-          );
-        },
-        child: _loading
-            ? const Center(
-                child: CupertinoActivityIndicator(
-                  radius: 20,
+            // Barra de navegación inferior
+            _buildBottomNavigation(theme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomHeader(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'WakeMap',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: theme.textTheme.titleLarge?.color,
+            ),
+          ),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+                  final currentTheme = themeProvider.currentThemeString;
+                  final newTheme = currentTheme == 'dark' ? 'light' : 'dark';
+                  await themeProvider.setTheme(newTheme);
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark 
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    theme.brightness == Brightness.dark 
+                        ? CupertinoIcons.sun_max
+                        : CupertinoIcons.moon,
+                    color: theme.brightness == Brightness.dark 
+                        ? Colors.white
+                        : Colors.black,
+                    size: 20,
+                  ),
                 ),
-              )
-            : _currentLocation == null
-                ? _buildPermissionRetry(theme)
-                : Column(
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.dark 
+                      ? Colors.pink.withOpacity(0.2)
+                      : Colors.pink[100],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  CupertinoIcons.person_fill,
+                  color: theme.brightness == Brightness.dark 
+                      ? Colors.pink[300]
+                      : Colors.pink[600],
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent(ThemeData theme) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.1),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: _loading
+          ? const Center(
+              child: CupertinoActivityIndicator(
+                radius: 20,
+              ),
+            )
+          : _currentLocation == null
+              ? _buildPermissionRetry(theme)
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
                     children: [
-                      const SizedBox(height: 12),
-                      WeatherWidget(
+                      const SizedBox(height: 8),
+                      FutureBuilder<Map<String, dynamic>>(
                         key: ValueKey(_weatherKey),
-                        latitude: _getWeatherLocation().latitude,
-                        longitude: _getWeatherLocation().longitude,
+                        future: _getWeatherLocationData(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData) {
+                            return WeatherWidget(
+                              latitude: snapshot.data!['latitude'],
+                              longitude: snapshot.data!['longitude'],
+                              locationName: snapshot.data!['locationName'],
+                            );
+                          }
+                          return WeatherWidget(
+                            latitude: _getWeatherLocation().latitude,
+                            longitude: _getWeatherLocation().longitude,
+                          );
+                        },
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 400),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 15,
-                                offset: Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: SizedBox(
-                              height: 260,
-                              child: GoogleMap(
-                                initialCameraPosition: CameraPosition(
-                                  target: _currentLocation != null
-                                      ? LatLng(
-                                          _currentLocation!.latitude!,
-                                          _currentLocation!.longitude!,
-                                        )
-                                      : const LatLng(0, 0),
-                                  zoom: 14,
-                                ),
-                                onMapCreated: (c) => _mapController = c,
-                                myLocationEnabled: true,
-                                myLocationButtonEnabled: true,
-                                polylines: _polylines,
-                                markers: _markers,
-                                circles: _circles,
-                                zoomControlsEnabled: false,
-                              ),
+                      const SizedBox(height: 16),
+                      Container(
+                        height: 280,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: theme.brightness == Brightness.dark
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ]
+                              : const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 15,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: GoogleMap(
+                            initialCameraPosition: CameraPosition(
+                              target: _currentLocation != null
+                                  ? LatLng(
+                                      _currentLocation!.latitude!,
+                                      _currentLocation!.longitude!,
+                                    )
+                                  : const LatLng(0, 0),
+                              zoom: 14,
                             ),
+                            onMapCreated: (c) => _mapController = c,
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: true,
+                            polylines: _polylines,
+                            markers: _markers,
+                            circles: _circles,
+                            zoomControlsEnabled: false,
+                            mapType: MapType.normal,
+                            mapToolbarEnabled: false,
+                            compassEnabled: true,
+                            liteModeEnabled: false,
+                            buildingsEnabled: true,
+                            trafficEnabled: false,
+                            indoorViewEnabled: false,
+                            tiltGesturesEnabled: true,
+                            scrollGesturesEnabled: true,
+                            zoomGesturesEnabled: true,
+                            rotateGesturesEnabled: true,
+                            style: _getMapStyle(),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      Expanded(
-                        child: _alarmas.isEmpty
-                            ? _buildEmptyState(theme)
-                            : AnimatedList(
-                                key: _listKey,
-                                initialItemCount: _alarmas.length,
-                                padding: const EdgeInsets.only(bottom: 20),
-                                itemBuilder: (context, index, animation) {
-                                  return SlideTransition(
-                                    position: Tween<Offset>(
-                                      begin: const Offset(1, 0),
-                                      end: Offset.zero,
-                                    ).animate(animation),
-                                    child: SizeTransition(
-                                      sizeFactor: animation,
-                                      child: _buildAlarmaCard(_alarmas[index], theme),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
+                      const SizedBox(height: 20),
+                      _alarmas.isEmpty
+                          ? _buildEmptyState(theme)
+                          : Column(
+                              children: _alarmas.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final alarma = entry.value;
+                                final isRecentlyActivated = _lastActivatedAlarmId == alarma['id'];
+                                
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: AnimatedSwitcher(
+                                    duration: Duration(milliseconds: isRecentlyActivated ? 2000 : 600),
+                                    transitionBuilder: (child, animation) {
+                                      if (isRecentlyActivated) {
+                                        // Animación especial para la alarma recién activada
+                                        return SlideTransition(
+                                          position: Tween<Offset>(
+                                            begin: const Offset(0, 15.0), // Desde MUY FUERA de la pantalla
+                                            end: Offset.zero,
+                                          ).animate(CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.elasticOut, // Rebote muy dramático
+                                          )),
+                                          child: ScaleTransition(
+                                            scale: Tween<double>(
+                                              begin: 0.5, // Más pequeño inicialmente
+                                              end: 1.0,
+                                            ).animate(CurvedAnimation(
+                                              parent: animation,
+                                              curve: Curves.elasticOut,
+                                            )),
+                                            child: RotationTransition(
+                                              turns: Tween<double>(
+                                                begin: 0.2, // Más rotación
+                                                end: 0.0,
+                                              ).animate(CurvedAnimation(
+                                                parent: animation,
+                                                curve: Curves.elasticOut,
+                                              )),
+                                              child: FadeTransition(
+                                                opacity: Tween<double>(
+                                                  begin: 0.0,
+                                                  end: 1.0,
+                                                ).animate(CurvedAnimation(
+                                                  parent: animation,
+                                                  curve: Curves.easeIn,
+                                                )),
+                                                child: child,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        // Animación normal para otras alarmas
+                                        return SlideTransition(
+                                          position: Tween<Offset>(
+                                            begin: const Offset(0, 0.5),
+                                            end: Offset.zero,
+                                          ).animate(CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeOutCubic,
+                                          )),
+                                          child: FadeTransition(
+                                            opacity: animation,
+                                            child: child,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: _buildAlarmaCard(alarma, theme, key: ValueKey('${alarma['id']}_$index')),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                      const SizedBox(height: 20),
                     ],
                   ),
-      ),
-      floatingActionButton: _currentLocation != null
-          ? AnimatedScale(
-              scale: _currentLocation != null ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: FloatingActionButton(
-                backgroundColor: theme.colorScheme.primary,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(
-                  CupertinoIcons.add,
-                  size: 24,
-                  color: Colors.white,
-                ),
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CreateAlarmaPage()),
-                  );
-                  if (result == true) {
-                    await _loadAlarmas();
-                  }
-                },
-              ),
-            )
-          : null,
     );
+  }
+
+  Widget _buildBottomNavigation(ThemeData theme) {
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        gradient: theme.brightness == Brightness.dark 
+            ? null
+            : LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  theme.colorScheme.primary,
+                  Colors.black,
+                ],
+                stops: const [0.0, 1.0],
+              ),
+        color: theme.brightness == Brightness.dark 
+            ? const Color(0xFF1C1C1E)
+            : null,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        border: theme.brightness == Brightness.dark
+            ? Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              )
+            : null,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(CupertinoIcons.home, 'Home', true),
+          _buildNavItem(CupertinoIcons.add, 'Nueva', false),
+          _buildNavItem(CupertinoIcons.settings, 'Ajustes', false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, bool isActive) {
+    return GestureDetector(
+      onTap: () {
+        if (label == 'Nueva') {
+          _showCreateAlarmaDialog();
+        } else if (label == 'Ajustes') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsPage()),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive 
+              ? (Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.white.withOpacity(0.1) 
+                  : Colors.white.withOpacity(0.2))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCreateAlarmaDialog() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CreateAlarmaPage()),
+    );
+    if (result == true) {
+      await _loadAlarmas();
+    }
   }
 
   Widget _buildEmptyState(ThemeData theme) {

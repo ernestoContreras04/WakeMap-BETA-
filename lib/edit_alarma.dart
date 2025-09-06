@@ -11,10 +11,17 @@ class EditAlarmaPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editar Alarma', style: TextStyle(color: Colors.white)),
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        title: Text(
+          'Editar Alarma',
+          style: TextStyle(
+            color: Theme.of(context).textTheme.titleLarge?.color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
         centerTitle: true,
-        elevation: 3,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       body: AlarmaForm(alarma: alarma),
     );
