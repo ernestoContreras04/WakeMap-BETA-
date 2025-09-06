@@ -14,25 +14,6 @@ workflows:
         APP_NAME: "WakeMap"
         
     scripts:
-      - name: Set up keychain to be used for codesigning
-        script: |
-          keychain initialize
-          
-      - name: Set up signing certificate
-        script: |
-          # Para desarrollo, puedes usar certificados de desarrollo
-          # Para distribución, necesitarás certificados de distribución
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
-          
-      - name: Set up provisioning profile
-        script: |
-          # Configurar perfil de aprovisionamiento
-          PROFILE_PATH="$(mktemp -d)/profile.mobileprovision"
-          echo "$APP_STORE_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_PATH"
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(/usr/bin/security cms -D -i "$PROFILE_PATH"))
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
-          
       - name: Install pods
         script: |
           find . -name "Podfile" -execdir pod install \;
@@ -46,14 +27,14 @@ workflows:
         script: |
           flutter test
           
-      - name: Build ipa for distribution
+      - name: Build iOS app (no signing)
         script: |
-          flutter build ipa --release \
+          flutter build ios --release --no-codesign \
             --build-name=1.0.0 \
             --build-number=1
             
     artifacts:
-      - build/ios/ipa/*.ipa
+      - build/ios/Release-iphoneos/*.app
       - flutter_drive.log
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
