@@ -19,6 +19,7 @@ import 'theme_manager.dart';
 import 'theme_provider.dart';
 import 'l10n/app_localizations.dart';
 import 'alarm_sounds.dart';
+import 'voice_test_page.dart';
 import 'package:logger/logger.dart';
 
 // Singleton global para manejar todos los players de audio
@@ -226,10 +227,11 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     }
 
     final url =
-        'http://api.open-meteo.com/v1/forecast?latitude=${widget.latitude}&longitude=${widget.longitude}&current_weather=true';
+        'https://api.open-meteo.com/v1/forecast?latitude=${widget.latitude}&longitude=${widget.longitude}&current_weather=true';
 
     try {
-      final response = await http.get(Uri.parse(url));
+      // Añadir un timeout razonable para evitar esperas infinitas
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (!mounted) return; // Verificar si el widget sigue montado
       
       if (response.statusCode == 200) {
@@ -259,9 +261,13 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           });
         }
       }
-    } catch (e) {
+    } catch (e, st) {
+      // Loguear el error para facilitar el diagnóstico
+      debugPrint('Weather fetch error: $e');
+      debugPrint('$st');
       if (mounted) {
         setState(() {
+          // Mostrar mensaje más descriptivo para el usuario
           _error = 'Error de conexión';
           _loading = false;
         });
@@ -1866,6 +1872,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         children: [
           _buildNavItem(CupertinoIcons.home, AppLocalizations.of(context).home, true),
           _buildNavItem(CupertinoIcons.add, AppLocalizations.of(context).newTab, false),
+          _buildNavItem(CupertinoIcons.mic, 'Voz', false),
           _buildNavItem(CupertinoIcons.settings, AppLocalizations.of(context).settings, false),
         ],
       ),
@@ -1877,6 +1884,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       onTap: () {
         if (label == AppLocalizations.of(context).newTab) {
           _showCreateAlarmaDialog();
+        } else if (label == 'Voz') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const VoiceTestPage()),
+          );
         } else if (label == AppLocalizations.of(context).settings) {
           Navigator.push(
             context,
