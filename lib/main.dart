@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +22,7 @@ import 'theme_provider.dart';
 import 'l10n/app_localizations.dart';
 import 'alarm_sounds.dart';
 import 'voice_test_page.dart';
-import 'package:logger/logger.dart';
+import 'widgets/glass_navbar.dart';
 
 // Singleton global para manejar todos los players de audio
 class GlobalAudioManager {
@@ -30,33 +31,24 @@ class GlobalAudioManager {
   GlobalAudioManager._internal();
   
   final List<AudioPlayer> _activePlayers = [];
-  final Logger _logger = Logger();
   
   void registerPlayer(AudioPlayer player) {
     _activePlayers.add(player);
-    _logger.d('📝 Player registrado. Total: ${_activePlayers.length}');
   }
   
   void unregisterPlayer(AudioPlayer player) {
     _activePlayers.remove(player);
-    _logger.d('📝 Player desregistrado. Total: ${_activePlayers.length}');
   }
   
   Future<void> stopAllPlayers() async {
-    _logger.d('🛑 DETENIENDO TODOS LOS PLAYERS REGISTRADOS: ${_activePlayers.length}');
-    
     for (int i = 0; i < _activePlayers.length; i++) {
       try {
-        _logger.d('🛑 Deteniendo player $i...');
         await _activePlayers[i].stop();
         await _activePlayers[i].setReleaseMode(ReleaseMode.release);
-        _logger.d('✅ Player $i detenido correctamente');
       } catch (e) {
-        _logger.d('⚠️ Error deteniendo player $i: $e');
+        // Silenciar errores en producción
       }
     }
-    
-    _logger.d('✅ TODOS LOS PLAYERS REGISTRADOS DETENIDOS');
   }
 
 }
@@ -188,7 +180,6 @@ class WeatherWidget extends StatefulWidget {
 
 class _WeatherWidgetState extends State<WeatherWidget> {
   double? _temperature;
-  double? _windspeed;
   bool _loading = true;
   String? _error;
 
@@ -220,7 +211,6 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         if (mounted) {
           setState(() {
             _temperature = data['temperature']?.toDouble();
-            _windspeed = data['windspeed']?.toDouble();
             _loading = false;
           });
         }
@@ -245,7 +235,6 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         // Guardar en caché
         final weatherData = {
           'temperature': currentWeather['temperature'],
-          'windspeed': currentWeather['windspeed'],
         };
         await prefs.setString(cacheKey, jsonEncode(weatherData));
         await prefs.setInt('${cacheKey}_time', now);
@@ -253,7 +242,6 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         if (mounted) {
           setState(() {
             _temperature = (currentWeather['temperature'] as num?)?.toDouble();
-            _windspeed = (currentWeather['windspeed'] as num?)?.toDouble();
             _loading = false;
           });
         }
@@ -395,6 +383,62 @@ class _WeatherWidgetState extends State<WeatherWidget> {
   }
 }
 
+// Clase para dibujar un patrón sutil que simula un mapa mientras carga
+class _MapPlaceholderPainter extends CustomPainter {
+  final bool isDark;
+
+  _MapPlaceholderPainter(this.isDark);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isDark
+          ? Colors.white.withOpacity(0.03)
+          : Colors.black.withOpacity(0.05)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    // Dibujar líneas horizontales sutiles
+    for (double y = 0; y < size.height; y += 40) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
+    }
+
+    // Dibujar líneas verticales sutiles
+    for (double x = 0; x < size.width; x += 40) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        paint,
+      );
+    }
+
+    // Dibujar algunos puntos sutiles para simular marcadores
+    final dotPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withOpacity(0.05)
+          : Colors.black.withOpacity(0.08)
+      ..style = PaintingStyle.fill;
+
+    final dotPositions = [
+      Offset(size.width * 0.3, size.height * 0.25),
+      Offset(size.width * 0.7, size.height * 0.4),
+      Offset(size.width * 0.5, size.height * 0.65),
+      Offset(size.width * 0.2, size.height * 0.8),
+    ];
+
+    for (final position in dotPositions) {
+      canvas.drawCircle(position, 3, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
   final String title;
@@ -406,7 +450,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Location _location = Location();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final Logger _logger = Logger();
   
   // Player global para evitar conflictos
   static final AudioPlayer _globalAlarmPlayer = AudioPlayer();
@@ -414,29 +457,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Manager global de audio
   final GlobalAudioManager _audioManager = GlobalAudioManager();
   
-  // Función estática para detener todos los players de la app
-  static Future<void> stopAllPlayers() async {
-    final logger = Logger();
-    try {
-      logger.d('🛑 DETENIENDO PLAYER GLOBAL...');
-      await _globalAlarmPlayer.stop();
-      await _globalAlarmPlayer.setReleaseMode(ReleaseMode.release);
-      logger.d('✅ PLAYER GLOBAL DETENIDO');
-      
-      // También intentar detener cualquier player de vista previa
-      try {
-        final tempPlayer = AudioPlayer();
-        await tempPlayer.stop();
-        await tempPlayer.dispose();
-        logger.d('✅ PLAYER TEMPORAL ADICIONAL DETENIDO');
-      } catch (e) {
-        logger.d('⚠️ ERROR EN PLAYER TEMPORAL ADICIONAL: $e');
-      }
-      
-    } catch (e) {
-      logger.d('⚠️ ERROR DETENIENDO PLAYER GLOBAL: $e');
-    }
-  }
 
   GoogleMapController? _mapController;
   LocationData? _currentLocation, _lastLocation;
@@ -445,7 +465,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Set<Circle> _circles = {};
   final List<Map<String, dynamic>> _alarmas = [];
   final List<int> _pinnedAlarmIds = <int>[];
-  final GlobalKey<AnimatedListState> _animatedListKey = GlobalKey<AnimatedListState>();
   int? _lastActivatedAlarmId; // Para detectar qué alarma se activó recientemente
   // Índice seleccionado en la barra de navegación inferior
   int _selectedNavIndex = 0;
@@ -457,16 +476,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _selectedAlarmSound = 'default';
 
   bool _loading = true, _notified = false, _centered = false;
+  bool _mapReady = false; // Para carga lazy del mapa
+  bool _permissionDenied = false; // Para saber si realmente se negaron los permisos
 
   @override
   void initState() {
     super.initState();
     
-    // Registrar players en el manager global
+    // Registrar players en el manager global (sin logs para mejor rendimiento)
     _audioManager.registerPlayer(_audioPlayer);
     _audioManager.registerPlayer(_globalAlarmPlayer);
     
-    _initialize();
+    // Observar cambios en el ciclo de vida de la app
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Mostrar UI primero, luego inicializar datos pesados después del primer frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialize();
+    });
+    
     // The native EventChannel used by AlarmHelper is not available on web.
     // Avoid subscribing on web to prevent MissingPluginException.
     if (!kIsWeb) {
@@ -474,26 +502,46 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (event == 'alarm_stopped') _onAlarmStopped();
       });
     }
-    
-    // Observar cambios en el ciclo de vida de la app
-    WidgetsBinding.instance.addObserver(this);
-    
-    // Escuchar cambios en la configuración del sonido
-    _listenToSoundSettingsChanges();
-  }
-
-  void _listenToSoundSettingsChanges() {
-    // Recargar configuración cada vez que se vuelva a la página principal
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadAlarmSoundSettings();
-    });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Recargar configuración cuando cambien las dependencias (ej: volver de ajustes)
-    _loadAlarmSoundSettings();
+    // Resetear el índice del navbar cuando vuelves a HomePage
+    // Esto se ejecuta cuando vuelves desde otra pantalla
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _selectedNavIndex != 0) {
+        // Verificar si estamos realmente en HomePage (primera ruta)
+        final route = ModalRoute.of(context);
+        if (route != null && route.isCurrent && route.isFirst) {
+          setState(() {
+            _selectedNavIndex = 0;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Resetear el índice cuando el widget se actualiza (cuando vuelves a HomePage)
+    if (_selectedNavIndex != 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _selectedNavIndex = 0;
+          });
+        }
+      });
+    }
+  }
+
+  // Cachear instancia de SharedPreferences para mejor rendimiento
+  SharedPreferences? _prefsCache;
+  Future<SharedPreferences> _getPrefs() async {
+    _prefsCache ??= await SharedPreferences.getInstance();
+    return _prefsCache!;
   }
 
   @override
@@ -514,20 +562,169 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _initialize() async {
-    await _loadPinnedAlarms();
-    await _loadAlarmSoundSettings();
-    if (await _requestPermission()) {
-      _currentLocation = await _location.getLocation();
-      _loading = false;
-      setState(() {});
-      _location.onLocationChanged.listen(_onLocationChanged);
-      await ph.Permission.notification.request();
+    // Mostrar UI inmediatamente sin esperar datos pesados
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
     }
+    
+    // Cargar datos en paralelo de forma asíncrona sin bloquear
+    _loadPinnedAlarms();
+    _loadAlarmSoundSettings();
     _loadAlarmas();
+    
+    // Cargar ubicación guardada inmediatamente para inicializar el mapa rápido
+    _loadCachedLocation();
+    
+    // Solicitar permisos en segundo plano sin bloquear la UI
+    _requestPermissionSilently();
+    
+    // Solicitar permiso de notificación de forma no bloqueante
+    ph.Permission.notification.request();
+  }
+  
+  Future<void> _loadCachedLocation() async {
+    // Intentar cargar ubicación guardada desde SharedPreferences
+    try {
+      final prefs = await _getPrefs();
+      final cachedLat = prefs.getDouble('last_location_lat');
+      final cachedLng = prefs.getDouble('last_location_lng');
+      
+      if (cachedLat != null && cachedLng != null) {
+        // Usar ubicación guardada para inicializar el mapa inmediatamente
+        if (mounted) {
+          setState(() {
+            _currentLocation = LocationData.fromMap({
+              'latitude': cachedLat.toDouble(),
+              'longitude': cachedLng.toDouble(),
+              'accuracy': 0.0,
+              'altitude': 0.0,
+              'speed': 0.0,
+              'speed_accuracy': 0.0,
+              'heading': 0.0,
+              'time': DateTime.now().millisecondsSinceEpoch.toDouble(),
+            });
+            _mapReady = true; // Activar mapa inmediatamente con ubicación guardada
+          });
+        }
+        return; // Si tenemos ubicación guardada, no necesitamos buscar más
+      }
+    } catch (e) {
+      // Si hay error, continuar sin ubicación guardada
+    }
+    
+    // Intentar obtener última ubicación conocida de forma rápida (sin GPS)
+    try {
+      final lastKnownPosition = await Geolocator.getLastKnownPosition();
+      if (lastKnownPosition != null && mounted) {
+        setState(() {
+          _currentLocation = LocationData.fromMap({
+            'latitude': lastKnownPosition.latitude,
+            'longitude': lastKnownPosition.longitude,
+            'accuracy': lastKnownPosition.accuracy,
+            'altitude': lastKnownPosition.altitude,
+            'speed': lastKnownPosition.speed,
+            'speed_accuracy': lastKnownPosition.speedAccuracy,
+            'heading': lastKnownPosition.heading,
+            'time': lastKnownPosition.timestamp.millisecondsSinceEpoch.toDouble(),
+          });
+          _mapReady = true; // Activar mapa inmediatamente con última ubicación conocida
+        });
+        // Guardar esta ubicación para el siguiente arranque
+        _saveLocationToCache(lastKnownPosition.latitude, lastKnownPosition.longitude);
+        return; // Si tenemos última ubicación conocida, no necesitamos usar fallback
+      }
+    } catch (e) {
+      // Si no hay última ubicación conocida, continuar
+    }
+    
+    // Fallback: usar ubicación por defecto (Madrid) para inicializar el mapa inmediatamente
+    // Esto asegura que el mapa siempre se muestre rápido, incluso sin permisos
+    if (mounted && _currentLocation == null) {
+        setState(() {
+          _currentLocation = LocationData.fromMap({
+            'latitude': 40.416775,
+            'longitude': -3.703790,
+            'accuracy': 0.0,
+            'altitude': 0.0,
+            'speed': 0.0,
+            'speed_accuracy': 0.0,
+            'heading': 0.0,
+            'time': DateTime.now().millisecondsSinceEpoch.toDouble(),
+          });
+          _mapReady = true; // Activar mapa inmediatamente con ubicación por defecto
+        });
+    }
+  }
+  
+  Future<void> _saveLocationToCache(double lat, double lng) async {
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setDouble('last_location_lat', lat);
+      await prefs.setDouble('last_location_lng', lng);
+    } catch (e) {
+      // Si hay error guardando, continuar
+    }
+  }
+  
+  Future<void> _requestPermissionSilently() async {
+    // Verificar permisos sin mostrar diálogo bloqueante
+    final status = await ph.Permission.location.status;
+    
+    if (status.isGranted) {
+      // Si ya tiene permisos, obtener ubicación precisa en segundo plano
+      _permissionDenied = false;
+      _location.getLocation().then((location) {
+        if (mounted) {
+          setState(() {
+            _currentLocation = location;
+            _mapReady = true; // Asegurar que el mapa esté activo
+            _permissionDenied = false;
+          });
+          _location.onLocationChanged.listen(_onLocationChanged);
+          // Guardar ubicación precisa para el siguiente arranque
+          _saveLocationToCache(location.latitude!, location.longitude!);
+        }
+      }).catchError((e) {
+        debugPrint('Error obteniendo ubicación: $e');
+      });
+    } else if (status.isDenied) {
+      // Solicitar permiso de forma silenciosa sin bloquear
+      ph.Permission.location.request().then((newStatus) {
+        if (newStatus.isGranted && mounted) {
+          _permissionDenied = false;
+          _location.getLocation().then((location) {
+            if (mounted) {
+              setState(() {
+                _currentLocation = location;
+                _mapReady = true; // Asegurar que el mapa esté activo
+                _permissionDenied = false;
+              });
+              _location.onLocationChanged.listen(_onLocationChanged);
+              // Guardar ubicación precisa para el siguiente arranque
+              _saveLocationToCache(location.latitude!, location.longitude!);
+            }
+          }).catchError((e) {
+            debugPrint('Error obteniendo ubicación: $e');
+          });
+        } else if (newStatus.isPermanentlyDenied && mounted) {
+          // Solo marcar como denegado si es permanente
+          setState(() {
+            _permissionDenied = true;
+          });
+        }
+      });
+    } else if (status.isPermanentlyDenied && mounted) {
+      // Si está permanentemente denegado, marcar como tal
+      setState(() {
+        _permissionDenied = true;
+      });
+    }
   }
 
   Future<void> _loadPinnedAlarms() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final raw = prefs.getString('pinned_alarm_ids');
     _pinnedAlarmIds.clear();
     if (raw != null) {
@@ -535,28 +732,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final list = (jsonDecode(raw) as List).cast<int>();
         _pinnedAlarmIds.addAll(list);
       } catch (e) {
+        // Si hay error parseando, continuar con lista vacía
       }
-    } else {
     }
   }
 
   Future<void> _savePinnedAlarms() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = jsonEncode(_pinnedAlarmIds.toList());
     await prefs.setString('pinned_alarm_ids', jsonString);
   }
 
   Future<void> _loadAlarmSoundSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     _selectedAlarmSound = prefs.getString('selected_alarm_sound') ?? 'default';
-    _logger.d('🔧 Sonido cargado desde SharedPreferences: $_selectedAlarmSound');
   }
 
-  Future<void> _unpinAlarma(int id) async {
-    _pinnedAlarmIds.remove(id);
-    await _savePinnedAlarms();
-    await _loadAlarmas();
-  }
 
   int _compareAlarmas(Map<String, dynamic> a, Map<String, dynamic> b) {
     final aId = (a['id'] ?? -1) as int;
@@ -599,47 +790,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return result;
   }
 
-  Future<bool> _requestPermission() async {
-    final status = await ph.Permission.location.request();
-    if (status.isGranted) return true;
-
-    final dialogResult = await _showPermissionDialog(
-      title: 'Permisos de ubicación requeridos',
-      content:
-          status.isPermanentlyDenied
-              ? 'Debes habilitarlos desde configuración.'
-              : 'Por favor, acepta para continuar.',
-      isPermanent: status.isPermanentlyDenied,
-    );
-    return dialogResult ? await _requestPermission() : false;
-  }
-
-  Future<bool> _showPermissionDialog({
-    required String title,
-    required String content,
-    required bool isPermanent,
-  }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            child: const Text('Cancelar'),
-            onPressed: () => Navigator.pop(context, false),
-          ),
-          TextButton(
-            child: Text(isPermanent ? 'Configuración' : 'Reintentar'),
-            onPressed: () => Navigator.pop(context, true),
-          ),
-        ],
-      ),
-    );
-    if (isPermanent && result == true) await ph.openAppSettings();
-    return result ?? false;
-  }
-
   void _onLocationChanged(LocationData loc) {
     // Solo actualizar si la ubicación cambió significativamente (evitar micro-movimientos)
     const double threshold = 0.0001; // ~11 metros
@@ -649,6 +799,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (latChanged.abs() > threshold || lngChanged.abs() > threshold) {
       _lastLocation = loc;
       setState(() => _currentLocation = loc);
+      
+      // Guardar ubicación actualizada en caché
+      if (loc.latitude != null && loc.longitude != null) {
+        _saveLocationToCache(loc.latitude!, loc.longitude!);
+      }
       
       if (_mapController != null && !_centered && _lastRoute.isEmpty) {
         _mapController!.animateCamera(
@@ -666,48 +821,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _onAlarmStopped() async {
-    _logger.d('🛑 BOTÓN DETENER PRESIONADO - _onAlarmStopped() llamado');
-    _logger.d('🛑 Estado antes: _notified=$_notified');
-    
     final activa = _alarmas.firstWhere(
       (a) => a['activa'] == 1,
       orElse: () => {},
     );
     
     if (activa.isNotEmpty) {
-      _logger.d('🛑 Desactivando alarma: ${activa['nombre']} (ID: ${activa['id']})');
       await _toggleAlarmaActiva(activa['id'], false);
-      _logger.d('✅ Alarma desactivada en base de datos');
-    } else {
-      _logger.d('⚠️ No se encontró alarma activa para desactivar');
     }
     
     // Asegurarse de detener el sonido
-    _logger.d('🛑 Deteniendo sonido de alarma...');
     await _stopAlarm();
     
     if (mounted) {
       setState(() => _notified = false);
-      _logger.d('✅ Estado _notified actualizado a false');
     }
-    
-    _logger.i('🛑 ALARMA COMPLETAMENTE DETENIDA Y DESACTIVADA');
   }
 
   void _checkProximity(LocationData loc) async {
-    // Recargar configuración de sonido cada vez que se verifica proximidad
-    await _loadAlarmSoundSettings();
-    
     final activa = _alarmas.firstWhere(
       (a) => a['activa'] == 1,
       orElse: () => {},
     );
     
-    _logger.d('🔍 Verificando proximidad - Alarmas activas: ${activa.isNotEmpty ? activa['nombre'] : 'ninguna'}');
-    
     if (activa.isEmpty) {
       if (_notified) {
-        _logger.d('🛑 No hay alarmas activas, deteniendo alarma');
         await _stopAlarm();
       }
       return;
@@ -722,20 +860,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       activa['longitud'],
     );
 
-    _logger.d('📏 Distancia: ${dist.toStringAsFixed(1)}m, Rango: ${rango}m, Notificado: $_notified');
-
     // Solo cambiar estado si hay cambio real
     if (dist <= rango && !_notified) {
-      _logger.d('🚨 ACTIVANDO ALARMA - Distancia dentro del rango');
       _notified = true;
       await _playAlarmSound();
       await AlarmHelper.startAlarmActivity();
     } else if (dist <= rango && _notified) {
-      _logger.d('🔊 ALARMA YA ACTIVADA - Asegurando reproducción');
       await _playAlarmSound();
       await AlarmHelper.startAlarmActivity();
     } else if (dist > rango && _notified) {
-      _logger.d('✅ DESACTIVANDO ALARMA - Distancia fuera del rango');
       _notified = false;
       await _stopAlarm();
     }
@@ -743,55 +876,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _playAlarmSound() async {
     try {
-      _logger.d('🔧 Sonido seleccionado en memoria: $_selectedAlarmSound');
-      
-      _logger.d('🛑 DETENIENDO TODOS LOS PLAYERS ANTES DE REPRODUCIR');
-      
       // Detener TODOS los players registrados
       await _audioManager.stopAllPlayers();
       
-      _logger.d('✅ TODOS LOS PLAYERS DETENIDOS');
-      
       // Esperar un momento para asegurar que se detengan completamente
       await Future.delayed(const Duration(milliseconds: 100));
-      _logger.d('⏱️ ESPERANDO DETENCIÓN COMPLETA...');
       
       final sound = AlarmSoundManager.getSoundById(_selectedAlarmSound) ?? 
                    AlarmSoundManager.getDefaultSound();
-      
-      _logger.i('🚨 ALARMA ACTIVADA - Reproduciendo: ${sound.name}');
-      _logger.d('🎵 Archivo a reproducir: ${sound.assetPath}');
-      _logger.d('✅ SOLUCIONADO: AlarmActivity.kt ya NO reproduce audio automáticamente');
-      _logger.d('✅ SOLO FLUTTER reproduce el sonido seleccionado');
       
       // Usar solo el player global
       await _globalAlarmPlayer.setReleaseMode(ReleaseMode.loop);
       await _globalAlarmPlayer.play(AssetSource(sound.assetPath));
       
-      _logger.d('✅ REPRODUCCIÓN INICIADA CON PLAYER GLOBAL');
-      
     } catch (e) {
-      _logger.e('❌ ERROR EN REPRODUCCIÓN: $e');
+      debugPrint('Error reproduciendo alarma: $e');
     }
   }
 
   Future<void> _stopAlarm() async {
     try {
-      _logger.d('🛑 INICIANDO DETENCIÓN DE ALARMA');
-      _logger.d('🛑 Estado antes de detener: _notified=$_notified');
-      
       // Detener TODOS los players registrados
       await _audioManager.stopAllPlayers();
-      _logger.d('✅ TODOS LOS PLAYERS DETENIDOS');
       
       // Esperar un momento para asegurar que se detenga completamente
-      await Future.delayed(const Duration(milliseconds: 200));
-      _logger.d('⏱️ ESPERANDO DETENCIÓN COMPLETA...');
-      
-      _logger.i('🛑 ALARMA DETENIDA COMPLETAMENTE');
+      await Future.delayed(const Duration(milliseconds: 100));
       
     } catch (e) {
-      _logger.e('❌ ERROR DETENIENDO ALARMA: $e');
+      debugPrint('Error deteniendo alarma: $e');
     }
   }
 
@@ -804,12 +916,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!mounted) return;
     
     
-    // Debug: mostrar estado inicial de cada alarma
-    for (var alarma in alarmas) {
-      final isPinned = _pinnedAlarmIds.contains(alarma['id']);
-      final isActive = (alarma['activa'] ?? 0) == 1;
-    }
-    
     final activa = alarmas.firstWhere(
       (a) => a['activa'] == 1,
       orElse: () => {},
@@ -820,13 +926,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     
     // Ordenar según reglas: pinned -> activa -> nombre
     alarmasList.sort(_compareAlarmas);
-    
-    // Debug: imprimir alarmas después del ordenamiento
-    for (var i = 0; i < alarmasList.length; i++) {
-      final alarma = alarmasList[i];
-      final isPinned = _pinnedAlarmIds.contains(alarma['id']);
-      final isActive = (alarma['activa'] ?? 0) == 1;
-    }
     
     // Animar los cambios en la lista
     _animateListChanges(alarmasList);
@@ -871,24 +970,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _alarmas.clear();
     _alarmas.addAll(newAlarmasList);
     
-    if (movedAlarmIds.isNotEmpty) {
-    }
-  }
-
-  Widget _buildAnimatedAlarmaCard(Map<String, dynamic> alarma, Animation<double> animation, ThemeData theme) {
-    return SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(-1, 0),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeInOut,
-      )),
-      child: FadeTransition(
-        opacity: animation,
-        child: _buildAlarmaCard(alarma, theme),
-      ),
-    );
   }
 
   Future<void> _deleteAlarma(int id) async {
@@ -918,28 +999,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _toggleAlarmaActiva(int id, bool activar) async {
-    _logger.d('🔄 _toggleAlarmaActiva llamado: ID=$id, activar=$activar');
-    
-    // 1) Actualizar todas las alarmas en BD
-    for (final alarma in _alarmas) {
-      if (activar && alarma['id'] == id) {
-        // Activar solo la alarma seleccionada
-        _logger.d('✅ Activando alarma: ${alarma['nombre']} (ID: $id)');
-        await DatabaseHelper.instance.updateAlarma({
-          ...alarma,
-          'activa': 1,
-        });
-      } else {
-        // Desactivar todas las demás alarmas
-        if (alarma['activa'] == 1) {
-          _logger.d('🛑 Desactivando alarma: ${alarma['nombre']} (ID: ${alarma['id']})');
-        }
-        await DatabaseHelper.instance.updateAlarma({
-          ...alarma,
-          'activa': 0,
-        });
-      }
-    }
+    // Optimización: usar método optimizado de DatabaseHelper
+    await DatabaseHelper.instance.updateAllAlarmasActiva(id, activar);
 
     // Si se activa, fijarla como "pinned" para que quede arriba incluso al desactivar
     if (activar) {
@@ -952,14 +1013,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _savePinnedAlarms();
     } else {
       // Si se desactiva, limpiar el ID de activación
-      _logger.d('🔄 Limpiando ID de activación');
       _lastActivatedAlarmId = null;
     }
 
-    _logger.d('🔄 Recargando alarmas para reflejar cambios...');
     // Recargar alarmas para reflejar cambios
     await _loadAlarmas();
-    _logger.d('✅ Alarmas recargadas correctamente');
   }
 
   Future<void> _drawRoute() async {
@@ -1007,7 +1065,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Generar clave de caché para la ruta
     final routeCacheKey = 'route_${oLat.toStringAsFixed(3)}_${oLng.toStringAsFixed(3)}_${lat.toStringAsFixed(3)}_${lng.toStringAsFixed(3)}';
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final cachedRoute = prefs.getString(routeCacheKey);
     final cachedRouteTime = prefs.getInt('${routeCacheKey}_time') ?? 0;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -1080,23 +1138,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<List<LatLng>> _fetchRouteFromAPI(double oLat, double oLng, double lat, double lng, String cacheKey, SharedPreferences prefs, int now) async {
     final url =
         'https://maps.googleapis.com/maps/api/directions/json?origin=$oLat,$oLng&destination=$lat,$lng&key=AIzaSyB5Nc_EBy8tO9Wyh0K0B96RDkN9d-MET_4';
-    final res = await http.get(Uri.parse(url));
-    final data = json.decode(res.body);
-
-    if ((data['routes'] as List).isEmpty) return [];
-
-    final encoded = data['routes'][0]['overview_polyline']['points'];
-    final routePoints = _decodePolyline(encoded);
     
-    // Guardar en caché
-    final routeData = routePoints.map((point) => {
-      'lat': point.latitude,
-      'lng': point.longitude,
-    }).toList();
-    await prefs.setString(cacheKey, jsonEncode(routeData));
-    await prefs.setInt('${cacheKey}_time', now);
-    
-    return routePoints;
+    try {
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final data = json.decode(res.body);
+
+      if ((data['routes'] as List).isEmpty) return [];
+
+      final encoded = data['routes'][0]['overview_polyline']['points'];
+      final routePoints = _decodePolyline(encoded);
+      
+      // Guardar en caché de forma optimizada
+      final routeData = routePoints.map((point) => {'lat': point.latitude, 'lng': point.longitude}).toList();
+      await prefs.setString(cacheKey, jsonEncode(routeData));
+      await prefs.setInt('${cacheKey}_time', now);
+      
+      return routePoints;
+    } catch (e) {
+      debugPrint('Error fetching route: $e');
+      return [];
+    }
   }
 
   List<LatLng> _decodePolyline(String encoded) {
@@ -1431,7 +1492,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _buildAlarmaCard(Map<String, dynamic> alarma, ThemeData theme, {Key? key}) {
     final isActive = alarma['activa'] == 1;
-    final isPinned = _pinnedAlarmIds.contains(alarma['id']);
     final isRecentlyActivated = _lastActivatedAlarmId == alarma['id'];
     
     return AnimatedContainer(
@@ -1578,18 +1638,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      extendBody: true, // Permite que el contenido se extienda detrás del navbar
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            // Header personalizado
-            _buildCustomHeader(theme),
-            // Contenido principal
-            Expanded(
-              child: _buildMainContent(theme),
+            // Contenido principal que se extiende completamente
+            Column(
+              children: [
+                // Header personalizado
+                _buildCustomHeader(theme),
+                // Contenido principal
+                Expanded(
+                  child: _buildMainContent(theme),
+                ),
+                // Espacio para el navbar (para que el contenido no se corte)
+                const SizedBox(height: 100),
+              ],
             ),
-            // Barra de navegación inferior
-            _buildBottomNavigation(theme),
+            // Navbar posicionado en la parte inferior
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildBottomNavigation(theme),
+            ),
           ],
         ),
       ),
@@ -1685,10 +1758,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 radius: 20,
               ),
             )
-          : _currentLocation == null
-              ? _buildPermissionRetry(theme)
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+          : SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 100), // Padding inferior para el navbar
                   child: Column(
                     children: [
                       const SizedBox(height: 8),
@@ -1710,57 +1781,173 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         },
                       ),
                       const SizedBox(height: 16),
-                      Container(
-                        height: 280,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: theme.brightness == Brightness.dark
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ]
-                              : const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 15,
-                                    offset: Offset(0, 8),
-                                  ),
-                                ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: GoogleMap(
-                            initialCameraPosition: CameraPosition(
-                              target: _currentLocation != null
-                                  ? LatLng(
-                                      _currentLocation!.latitude!,
-                                      _currentLocation!.longitude!,
-                                    )
-                                  : const LatLng(0, 0),
-                              zoom: 14,
-                            ),
-                            onMapCreated: (c) => _mapController = c,
-                            myLocationEnabled: true,
-                            myLocationButtonEnabled: true,
-                            polylines: _polylines,
-                            markers: _markers,
-                            circles: _circles,
-                            zoomControlsEnabled: false,
-                            mapType: MapType.normal,
-                            mapToolbarEnabled: false,
-                            compassEnabled: true,
-                            liteModeEnabled: false,
-                            buildingsEnabled: true,
-                            trafficEnabled: false,
-                            indoorViewEnabled: false,
-                            tiltGesturesEnabled: true,
-                            scrollGesturesEnabled: true,
-                            zoomGesturesEnabled: true,
-                            rotateGesturesEnabled: true,
-                            style: _getMapStyle(),
+                      RepaintBoundary(
+                        child: Container(
+                          height: 280,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: theme.brightness == Brightness.dark
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ]
+                                : const [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 15,
+                                      offset: Offset(0, 8),
+                                    ),
+                                  ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: _currentLocation != null && _mapReady
+                                ? GoogleMap(
+                                    key: ValueKey('map_${_currentLocation!.latitude}_${_currentLocation!.longitude}'),
+                                    initialCameraPosition: CameraPosition(
+                                      target: LatLng(
+                                        _currentLocation!.latitude!,
+                                        _currentLocation!.longitude!,
+                                      ),
+                                      zoom: 14,
+                                    ),
+                                    onMapCreated: (c) {
+                                      _mapController = c;
+                                      // Centrar inmediatamente después de crear el mapa
+                                      c.animateCamera(
+                                        CameraUpdate.newCameraPosition(
+                                          CameraPosition(
+                                            target: LatLng(
+                                              _currentLocation!.latitude!,
+                                              _currentLocation!.longitude!,
+                                            ),
+                                            zoom: 14,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    myLocationEnabled: true,
+                                    myLocationButtonEnabled: false, // Deshabilitar para carga más rápida
+                                    polylines: _polylines,
+                                    markers: _markers,
+                                    circles: _circles,
+                                    zoomControlsEnabled: false,
+                                    mapType: MapType.normal,
+                                    mapToolbarEnabled: false,
+                                    compassEnabled: false, // Deshabilitar para carga más rápida
+                                    liteModeEnabled: false,
+                                    buildingsEnabled: false, // Deshabilitar para carga más rápida
+                                    trafficEnabled: false,
+                                    indoorViewEnabled: false,
+                                    tiltGesturesEnabled: true,
+                                    scrollGesturesEnabled: true,
+                                    zoomGesturesEnabled: true,
+                                    rotateGesturesEnabled: true,
+                                    style: _getMapStyle(),
+                                  )
+                                : _permissionDenied && _currentLocation == null
+                                    ? Container(
+                                        // Solo mostrar mensaje de permisos si realmente están denegados
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: theme.brightness == Brightness.dark
+                                                ? [Colors.grey[800]!, Colors.grey[900]!]
+                                                : [Colors.grey[300]!, Colors.grey[200]!],
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              CupertinoIcons.location_slash,
+                                              size: 48,
+                                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Text(
+                                              'Permisos de ubicación requeridos',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: theme.textTheme.bodyMedium?.color,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 32),
+                                              child: Text(
+                                                'Concede permisos para ver el mapa',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: theme.textTheme.bodySmall?.color,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            ElevatedButton(
+                                              onPressed: () => _requestPermissionSilently(),
+                                              child: const Text('Conceder permisos'),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : Container(
+                                        // Placeholder sutil mientras carga el mapa - siempre visible hasta que el mapa esté listo
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: theme.brightness == Brightness.dark
+                                                ? [
+                                                    Colors.grey[850]!.withOpacity(0.6),
+                                                    Colors.grey[900]!.withOpacity(0.8),
+                                                    Colors.grey[850]!.withOpacity(0.6),
+                                                  ]
+                                                : [
+                                                    Colors.grey[350]!.withOpacity(0.5),
+                                                    Colors.grey[200]!.withOpacity(0.7),
+                                                    Colors.grey[350]!.withOpacity(0.5),
+                                                  ],
+                                          ),
+                                        ),
+                                        child: Stack(
+                                          children: [
+                                            // Patrón sutil de líneas para simular un mapa
+                                            Positioned.fill(
+                                              child: CustomPaint(
+                                                painter: _MapPlaceholderPainter(
+                                                  theme.brightness == Brightness.dark,
+                                                ),
+                                              ),
+                                            ),
+                                            // Overlay sutil con shimmer effect
+                                            Positioned.fill(
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                    colors: [
+                                                      Colors.transparent,
+                                                      theme.brightness == Brightness.dark
+                                                          ? Colors.white.withOpacity(0.02)
+                                                          : Colors.white.withOpacity(0.3),
+                                                      Colors.transparent,
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                           ),
                         ),
                       ),
@@ -1847,145 +2034,58 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _buildBottomNavigation(ThemeData theme) {
-    // Usar BottomNavigationBar nativo para mejor accesibilidad, facilidad de uso
-    // y para respetar automáticamente los insets (safe area).
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? Colors.black.withOpacity(0.6)
-              : Colors.white.withOpacity(0.92),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedNavIndex,
-          onTap: (index) {
+    return GlassNavbar(
+      currentIndex: _selectedNavIndex,
+      onTap: (index) {
+        // Comportamientos por pestaña
+        switch (index) {
+          case 0:
+            // Inicio: simplemente permanecer en la pantalla principal
+            // Asegurarse de que el índice esté en 0
+            setState(() {
+              _selectedNavIndex = 0;
+            });
+            break;
+          case 1:
             setState(() {
               _selectedNavIndex = index;
             });
-            // Comportamientos por pestaña
-            switch (index) {
-              case 0:
-                // Inicio: simplemente permanecer en la pantalla principal
-                break;
-              case 1:
-                _showCreateAlarmaDialog();
-                break;
-              case 2:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const VoiceTestPage()),
-                );
-                break;
-              case 3:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsPage()),
-                );
-                break;
-            }
-          },
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          selectedItemColor: Colors.redAccent,
-          unselectedItemColor: theme.textTheme.bodySmall?.color?.withOpacity(0.7) ?? Colors.grey,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          showUnselectedLabels: true,
-          iconSize: 26,
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(CupertinoIcons.home),
-              label: AppLocalizations.of(context).home,
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(CupertinoIcons.add),
-              label: AppLocalizations.of(context).newTab,
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(CupertinoIcons.mic),
-              label: 'Voz',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(CupertinoIcons.settings),
-              label: AppLocalizations.of(context).settings,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    return GestureDetector(
-      onTap: () {
-        if (label == AppLocalizations.of(context).newTab) {
-          _showCreateAlarmaDialog();
-        } else if (label == 'Voz') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const VoiceTestPage()),
-          );
-        } else if (label == AppLocalizations.of(context).settings) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const SettingsPage()),
-          );
+            _showCreateAlarmaDialog();
+            break;
+          case 2:
+            setState(() {
+              _selectedNavIndex = index;
+            });
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const VoiceTestPage()),
+            ).then((_) {
+              // Cuando vuelves de VoiceTestPage, resetear a 0
+              if (mounted) {
+                setState(() {
+                  _selectedNavIndex = 0;
+                });
+              }
+            });
+            break;
+          case 3:
+            setState(() {
+              _selectedNavIndex = index;
+            });
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsPage()),
+            ).then((_) {
+              // Cuando vuelves de SettingsPage, resetear a 0
+              if (mounted) {
+                setState(() {
+                  _selectedNavIndex = 0;
+                });
+              }
+            });
+            break;
         }
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Icon with optional selected background
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isActive ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: isActive
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: isActive ? Colors.redAccent : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? Colors.redAccent : (Theme.of(context).textTheme.bodySmall?.color ?? Colors.black54),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -2036,66 +2136,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 fontSize: 14,
               ),
               textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPermissionRetry(ThemeData theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                CupertinoIcons.location_slash,
-                size: 40,
-                color: Colors.red[400],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Permisos de ubicación requeridos',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Necesitamos acceso a tu ubicación para funcionar correctamente',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _initialize,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Conceder permisos',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
             ),
           ],
         ),

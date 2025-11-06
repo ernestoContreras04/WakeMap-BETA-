@@ -35,7 +35,6 @@ class _AlarmaFormState extends State<AlarmaForm> {
   double _radius = 100.0;
   bool _loading = true;
   bool _updatingFromMap = false;
-  bool _updatingFromText = false;
 
   bool get _isEditMode => widget.alarma != null;
 
@@ -62,10 +61,8 @@ class _AlarmaFormState extends State<AlarmaForm> {
       final text = _rangoCtrl.text;
       final newRadius = double.tryParse(text);
       if (newRadius != null && _destino != null) {
-        _updatingFromText = true;
         _radius = newRadius;
         _updateCircleAndMarker();
-        _updatingFromText = false;
       }
     });
   }
@@ -111,33 +108,6 @@ class _AlarmaFormState extends State<AlarmaForm> {
     }
   }
 
-  Future<void> _initLocation() async {
-    try {
-      final perm = await _location.requestPermission();
-      if (perm != loc.PermissionStatus.granted) {
-        _showMsg('Permiso de ubicación denegado');
-        if (mounted) setState(() => _loading = false);
-        return;
-      }
-
-      try {
-        final locData = await _location.getLocation().timeout(const Duration(seconds: 10));
-        if (locData.latitude == null || locData.longitude == null) throw Exception('Ubicación no disponible');
-        if (mounted) {
-          setState(() {
-            _loading = false;
-            _updateDestino(LatLng(locData.latitude!, locData.longitude!));
-          });
-        }
-      } catch (e) {
-        _showMsg('No se pudo obtener la ubicación automáticamente. Busca una ubicación o usa el mapa.');
-        if (mounted) setState(() => _loading = false);
-      }
-    } catch (e) {
-      _showMsg('Error al obtener la ubicación');
-      if (mounted) setState(() => _loading = false);
-    }
-  }
 
   void _updateMarkersAndCircles() {
     if (_destino == null) return;

@@ -10,6 +10,7 @@ import 'package:tfg_definitivo2/l10n/app_localizations.dart';
 import 'package:tfg_definitivo2/alarm_sounds.dart';
 import 'package:logger/logger.dart';
 import 'package:tfg_definitivo2/main.dart';
+import 'package:tfg_definitivo2/widgets/glass_navbar.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -173,39 +174,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _playSoundPreview(String soundId) async {
-    try {
-      // Si ya está reproduciendo el mismo sonido, detenerlo
-      if (_currentlyPlayingSound == soundId && _isPlaying) {
-        await _stopSoundPreview();
-        return;
-      }
-
-      // Detener cualquier sonido que esté reproduciéndose
-      await _stopSoundPreview();
-
-      final sound = AlarmSoundManager.getSoundById(soundId);
-      if (sound != null) {
-        // Actualizar estado ANTES de reproducir
-        setState(() {
-          _currentlyPlayingSound = soundId;
-          _isPlaying = true;
-        });
-        
-        // Reproducir en bucle para la vista previa (para que pueda durar más tiempo)
-        await _previewPlayer.setReleaseMode(ReleaseMode.loop);
-        await _previewPlayer.play(AssetSource(sound.assetPath));
-        
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = false;
-          _currentlyPlayingSound = null;
-        });
-      }
-    }
-  }
 
   Future<void> _stopSoundPreview() async {
     try {
@@ -272,6 +240,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true, // Permite que el contenido se extienda detrás del navbar
       appBar: AppBar(
         title: Text(
           AppLocalizations.of(context).settings,
@@ -285,205 +254,219 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionHeader(AppLocalizations.of(context).notificationsAndSound),
-            _buildSettingsCard([
-              _buildSwitchTile(
-                icon: CupertinoIcons.bell,
-                title: AppLocalizations.of(context).notifications,
-                subtitle: AppLocalizations.of(context).receiveAlarmNotifications,
-                value: _notificationsEnabled,
-                onChanged: (value) {
-                  setState(() => _notificationsEnabled = value);
-                  _saveSetting('notifications_enabled', value);
-                },
-              ),
-              _buildSwitchTile(
-                icon: CupertinoIcons.speaker_2,
-                title: AppLocalizations.of(context).sound,
-                subtitle: AppLocalizations.of(context).playAlarmSound,
-                value: _soundEnabled,
-                onChanged: (value) {
-                  setState(() => _soundEnabled = value);
-                  _saveSetting('sound_enabled', value);
-                },
-              ),
-              _buildSwitchTile(
-                icon: CupertinoIcons.waveform,
-                title: AppLocalizations.of(context).vibration,
-                subtitle: AppLocalizations.of(context).vibrateOnAlarm,
-                value: _vibrationEnabled,
-                onChanged: (value) {
-                  setState(() => _vibrationEnabled = value);
-                  _saveSetting('vibration_enabled', value);
-                },
-              ),
-              _buildSoundSelectorTile(),
-            ]),
-            
-            const SizedBox(height: 24),
-            _buildSectionHeader(AppLocalizations.of(context).locationAndMaps),
-            _buildSettingsCard([
-              _buildSwitchTile(
-                icon: CupertinoIcons.location,
-                title: AppLocalizations.of(context).locationServices,
-                subtitle: AppLocalizations.of(context).allowLocationAccess,
-                value: _locationEnabled,
-                onChanged: (value) {
-                  setState(() => _locationEnabled = value);
-                  _saveSetting('location_enabled', value);
-                },
-              ),
-              _buildSliderTile(
-                icon: CupertinoIcons.circle_grid_hex,
-                title: AppLocalizations.of(context).defaultRadius,
-                subtitle: AppLocalizations.of(context).defaultDistanceForNewAlarms,
-                value: _defaultRadius,
-                min: 50,
-                max: 500,
-                divisions: 9,
-                onChanged: (value) {
-                  setState(() => _defaultRadius = value);
-                  _saveSetting('default_radius', value);
-                },
-              ),
-            ]),
+      body: Stack(
+        children: [
+          // Contenido que se extiende completamente
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Padding inferior para el navbar
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionHeader(AppLocalizations.of(context).notificationsAndSound),
+                _buildSettingsCard([
+                  _buildSwitchTile(
+                    icon: CupertinoIcons.bell,
+                    title: AppLocalizations.of(context).notifications,
+                    subtitle: AppLocalizations.of(context).receiveAlarmNotifications,
+                    value: _notificationsEnabled,
+                    onChanged: (value) {
+                      setState(() => _notificationsEnabled = value);
+                      _saveSetting('notifications_enabled', value);
+                    },
+                  ),
+                  _buildSwitchTile(
+                    icon: CupertinoIcons.speaker_2,
+                    title: AppLocalizations.of(context).sound,
+                    subtitle: AppLocalizations.of(context).playAlarmSound,
+                    value: _soundEnabled,
+                    onChanged: (value) {
+                      setState(() => _soundEnabled = value);
+                      _saveSetting('sound_enabled', value);
+                    },
+                  ),
+                  _buildSwitchTile(
+                    icon: CupertinoIcons.waveform,
+                    title: AppLocalizations.of(context).vibration,
+                    subtitle: AppLocalizations.of(context).vibrateOnAlarm,
+                    value: _vibrationEnabled,
+                    onChanged: (value) {
+                      setState(() => _vibrationEnabled = value);
+                      _saveSetting('vibration_enabled', value);
+                    },
+                  ),
+                  _buildSoundSelectorTile(),
+                ]),
+                
+                const SizedBox(height: 24),
+                _buildSectionHeader(AppLocalizations.of(context).locationAndMaps),
+                _buildSettingsCard([
+                  _buildSwitchTile(
+                    icon: CupertinoIcons.location,
+                    title: AppLocalizations.of(context).locationServices,
+                    subtitle: AppLocalizations.of(context).allowLocationAccess,
+                    value: _locationEnabled,
+                    onChanged: (value) {
+                      setState(() => _locationEnabled = value);
+                      _saveSetting('location_enabled', value);
+                    },
+                  ),
+                  _buildSliderTile(
+                    icon: CupertinoIcons.circle_grid_hex,
+                    title: AppLocalizations.of(context).defaultRadius,
+                    subtitle: AppLocalizations.of(context).defaultDistanceForNewAlarms,
+                    value: _defaultRadius,
+                    min: 50,
+                    max: 500,
+                    divisions: 9,
+                    onChanged: (value) {
+                      setState(() => _defaultRadius = value);
+                      _saveSetting('default_radius', value);
+                    },
+                  ),
+                ]),
 
-            const SizedBox(height: 24),
-            _buildSectionHeader(AppLocalizations.of(context).personalization),
-            _buildSettingsCard([
-              _buildDropdownTile(
-                icon: CupertinoIcons.globe,
-                title: AppLocalizations.of(context).language,
-                subtitle: AppLocalizations.of(context).selectAppLanguage,
-                value: _selectedLanguage,
-                items: _getLanguageItems(),
-                onChanged: (value) {
-                  setState(() => _selectedLanguage = value);
-                  _saveSetting('selected_language', value);
-                  // Cambiar idioma en tiempo real
-                  Provider.of<ThemeProvider>(context, listen: false).setLanguage(value);
-                },
-              ),
-              _buildDropdownTile(
-                icon: CupertinoIcons.paintbrush,
-                title: AppLocalizations.of(context).theme,
-                subtitle: AppLocalizations.of(context).appearance,
-                value: _selectedTheme,
-                items: [
-                  {'value': 'light', 'label': AppLocalizations.of(context).light},
-                  {'value': 'dark', 'label': AppLocalizations.of(context).dark},
-                  {'value': 'system', 'label': AppLocalizations.of(context).system},
-                ],
-                onChanged: (value) async {
-                  setState(() => _selectedTheme = value);
-                  _saveSetting('selected_theme', value);
-                  
-                  // Cambiar tema usando el provider
-                  final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-                  await themeProvider.setTheme(value);
-                },
-              ),
-            ]),
+                const SizedBox(height: 24),
+                _buildSectionHeader(AppLocalizations.of(context).personalization),
+                _buildSettingsCard([
+                  _buildDropdownTile(
+                    icon: CupertinoIcons.globe,
+                    title: AppLocalizations.of(context).language,
+                    subtitle: AppLocalizations.of(context).selectAppLanguage,
+                    value: _selectedLanguage,
+                    items: _getLanguageItems(),
+                    onChanged: (value) {
+                      setState(() => _selectedLanguage = value);
+                      _saveSetting('selected_language', value);
+                      // Cambiar idioma en tiempo real
+                      Provider.of<ThemeProvider>(context, listen: false).setLanguage(value);
+                    },
+                  ),
+                  _buildDropdownTile(
+                    icon: CupertinoIcons.paintbrush,
+                    title: AppLocalizations.of(context).theme,
+                    subtitle: AppLocalizations.of(context).appearance,
+                    value: _selectedTheme,
+                    items: [
+                      {'value': 'light', 'label': AppLocalizations.of(context).light},
+                      {'value': 'dark', 'label': AppLocalizations.of(context).dark},
+                      {'value': 'system', 'label': AppLocalizations.of(context).system},
+                    ],
+                    onChanged: (value) async {
+                      setState(() => _selectedTheme = value);
+                      _saveSetting('selected_theme', value);
+                      
+                      // Cambiar tema usando el provider
+                      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+                      await themeProvider.setTheme(value);
+                    },
+                  ),
+                ]),
 
-            const SizedBox(height: 24),
-            _buildSectionHeader(AppLocalizations.of(context).performance),
-            _buildSettingsCard([
-              _buildSwitchTile(
-                icon: CupertinoIcons.play_circle,
-                title: AppLocalizations.of(context).autoStart,
-                subtitle: AppLocalizations.of(context).startAppOnDeviceBoot,
-                value: _autoStartEnabled,
-                onChanged: (value) {
-                  setState(() => _autoStartEnabled = value);
-                  _saveSetting('auto_start_enabled', value);
-                },
-              ),
-              _buildSwitchTile(
-                icon: CupertinoIcons.battery_charging,
-                title: AppLocalizations.of(context).batteryOptimization,
-                subtitle: AppLocalizations.of(context).optimizeBatteryUsage,
-                value: _batteryOptimizationEnabled,
-                onChanged: (value) {
-                  setState(() => _batteryOptimizationEnabled = value);
-                  _saveSetting('battery_optimization_enabled', value);
-                },
-              ),
-              _buildSwitchTile(
-                icon: CupertinoIcons.cloud_download,
-                title: AppLocalizations.of(context).dataCache,
-                subtitle: AppLocalizations.of(context).saveDataForOfflineUse,
-                value: _cacheEnabled,
-                onChanged: (value) {
-                  setState(() => _cacheEnabled = value);
-                  _saveSetting('cache_enabled', value);
-                },
-              ),
-            ]),
+                const SizedBox(height: 24),
+                _buildSectionHeader(AppLocalizations.of(context).performance),
+                _buildSettingsCard([
+                  _buildSwitchTile(
+                    icon: CupertinoIcons.play_circle,
+                    title: AppLocalizations.of(context).autoStart,
+                    subtitle: AppLocalizations.of(context).startAppOnDeviceBoot,
+                    value: _autoStartEnabled,
+                    onChanged: (value) {
+                      setState(() => _autoStartEnabled = value);
+                      _saveSetting('auto_start_enabled', value);
+                    },
+                  ),
+                  _buildSwitchTile(
+                    icon: CupertinoIcons.battery_charging,
+                    title: AppLocalizations.of(context).batteryOptimization,
+                    subtitle: AppLocalizations.of(context).optimizeBatteryUsage,
+                    value: _batteryOptimizationEnabled,
+                    onChanged: (value) {
+                      setState(() => _batteryOptimizationEnabled = value);
+                      _saveSetting('battery_optimization_enabled', value);
+                    },
+                  ),
+                  _buildSwitchTile(
+                    icon: CupertinoIcons.cloud_download,
+                    title: AppLocalizations.of(context).dataCache,
+                    subtitle: AppLocalizations.of(context).saveDataForOfflineUse,
+                    value: _cacheEnabled,
+                    onChanged: (value) {
+                      setState(() => _cacheEnabled = value);
+                      _saveSetting('cache_enabled', value);
+                    },
+                  ),
+                ]),
 
-            const SizedBox(height: 24),
-            _buildSectionHeader(AppLocalizations.of(context).permissionsAndData),
-            _buildSettingsCard([
-              _buildActionTile(
-                icon: CupertinoIcons.checkmark_shield,
-                title: AppLocalizations.of(context).managePermissions,
-                subtitle: AppLocalizations.of(context).configureAppPermissions,
-                onTap: _requestPermissions,
-              ),
-              _buildActionTile(
-                icon: CupertinoIcons.trash,
-                title: AppLocalizations.of(context).clearCache,
-                subtitle: AppLocalizations.of(context).deleteTemporaryData,
-                onTap: _clearCache,
-              ),
-              _buildActionTile(
-                icon: CupertinoIcons.delete_solid,
-                title: AppLocalizations.of(context).deleteAllData,
-                subtitle: AppLocalizations.of(context).deleteAlarmsAndSettings,
-                onTap: _clearAllData,
-                isDestructive: true,
-              ),
-            ]),
+                const SizedBox(height: 24),
+                _buildSectionHeader(AppLocalizations.of(context).permissionsAndData),
+                _buildSettingsCard([
+                  _buildActionTile(
+                    icon: CupertinoIcons.checkmark_shield,
+                    title: AppLocalizations.of(context).managePermissions,
+                    subtitle: AppLocalizations.of(context).configureAppPermissions,
+                    onTap: _requestPermissions,
+                  ),
+                  _buildActionTile(
+                    icon: CupertinoIcons.trash,
+                    title: AppLocalizations.of(context).clearCache,
+                    subtitle: AppLocalizations.of(context).deleteTemporaryData,
+                    onTap: _clearCache,
+                  ),
+                  _buildActionTile(
+                    icon: CupertinoIcons.delete_solid,
+                    title: AppLocalizations.of(context).deleteAllData,
+                    subtitle: AppLocalizations.of(context).deleteAlarmsAndSettings,
+                    onTap: _clearAllData,
+                    isDestructive: true,
+                  ),
+                ]),
 
-            const SizedBox(height: 24),
-            _buildSectionHeader(AppLocalizations.of(context).information),
-            _buildSettingsCard([
-              _buildInfoTile(
-                icon: CupertinoIcons.info_circle,
-                title: AppLocalizations.of(context).version,
-                subtitle: '1.0.0',
-              ),
-              _buildActionTile(
-                icon: CupertinoIcons.doc_text,
-                title: AppLocalizations.of(context).privacyPolicy,
-                subtitle: AppLocalizations.of(context).howWeProtectYourData,
-                onTap: () {
-                  // TODO: Implementar política de privacidad
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(AppLocalizations.of(context).comingSoon)),
-                  );
-                },
-              ),
-              _buildActionTile(
-                icon: CupertinoIcons.question_circle,
-                title: AppLocalizations.of(context).helpAndSupport,
-                subtitle: AppLocalizations.of(context).getHelpWithApp,
-                onTap: () {
-                  // TODO: Implementar ayuda
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(AppLocalizations.of(context).comingSoon)),
-                  );
-                },
-              ),
-            ]),
+                const SizedBox(height: 24),
+                _buildSectionHeader(AppLocalizations.of(context).information),
+                _buildSettingsCard([
+                  _buildInfoTile(
+                    icon: CupertinoIcons.info_circle,
+                    title: AppLocalizations.of(context).version,
+                    subtitle: '1.0.0',
+                  ),
+                  _buildActionTile(
+                    icon: CupertinoIcons.doc_text,
+                    title: AppLocalizations.of(context).privacyPolicy,
+                    subtitle: AppLocalizations.of(context).howWeProtectYourData,
+                    onTap: () {
+                      // TODO: Implementar política de privacidad
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(AppLocalizations.of(context).comingSoon)),
+                      );
+                    },
+                  ),
+                  _buildActionTile(
+                    icon: CupertinoIcons.question_circle,
+                    title: AppLocalizations.of(context).helpAndSupport,
+                    subtitle: AppLocalizations.of(context).getHelpWithApp,
+                    onTap: () {
+                      // TODO: Implementar ayuda
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(AppLocalizations.of(context).comingSoon)),
+                      );
+                    },
+                  ),
+                ]),
 
-            const SizedBox(height: 40),
-          ],
-        ),
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+          // Navbar posicionado en la parte inferior
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: GlassNavbar(
+              currentIndex: 3, // Settings está en el índice 3
+            ),
+          ),
+        ],
       ),
     );
   }

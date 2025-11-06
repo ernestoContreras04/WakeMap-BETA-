@@ -141,6 +141,26 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> updateAllAlarmasActiva(int id, bool activar) async {
+    if (kIsWeb) {
+      // Para web, actualizar en memoria
+      for (var alarma in _inMemoryAlarmas) {
+        alarma['activa'] = (alarma['id'] == id && activar) ? 1 : 0;
+      }
+      return;
+    }
+
+    final db = await database;
+    await db.transaction((txn) async {
+      // Desactivar todas las alarmas primero
+      await txn.update('alarmas', {'activa': 0});
+      // Si se activa, activar solo la seleccionada
+      if (activar) {
+        await txn.update('alarmas', {'activa': 1}, where: 'id = ?', whereArgs: [id]);
+      }
+    });
+  }
+
   Future<void> deleteLocalDatabase() async {
     if (kIsWeb) {
       _inMemoryAlarmas.clear();
