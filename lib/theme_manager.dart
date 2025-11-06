@@ -115,14 +115,14 @@ class ThemeManager {
         ),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return Colors.white;
           }
           return Colors.grey[400];
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return const Color(0xFF4F46E5); // Azul más claro y vibrante para mejor contraste
           }
           return Colors.grey[300];
@@ -191,8 +191,8 @@ class ThemeManager {
       ),
       dropdownMenuTheme: DropdownMenuThemeData(
         menuStyle: MenuStyle(
-          backgroundColor: MaterialStateProperty.all(Colors.white),
-          elevation: MaterialStateProperty.all(8),
+          backgroundColor: WidgetStateProperty.all(Colors.white),
+          elevation: WidgetStateProperty.all(8),
         ),
         textStyle: const TextStyle(color: Colors.black87),
       ),
@@ -264,14 +264,14 @@ class ThemeManager {
         ),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return Colors.white;
           }
           return Colors.grey[600];
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return seedColor;
           }
           return Colors.grey[800];
@@ -340,8 +340,8 @@ class ThemeManager {
       ),
       dropdownMenuTheme: DropdownMenuThemeData(
         menuStyle: MenuStyle(
-          backgroundColor: MaterialStateProperty.all(const Color(0xFF1C1C1E)),
-          elevation: MaterialStateProperty.all(8),
+          backgroundColor: WidgetStateProperty.all(const Color(0xFF1C1C1E)),
+          elevation: WidgetStateProperty.all(8),
         ),
         textStyle: const TextStyle(color: Colors.white),
       ),

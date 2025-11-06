@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:location/location.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:http/http.dart' as http;
@@ -57,6 +58,7 @@ class GlobalAudioManager {
     
     _logger.d('✅ TODOS LOS PLAYERS REGISTRADOS DETENIDOS');
   }
+
 }
 
 class AlarmHelper {
@@ -67,8 +69,10 @@ class AlarmHelper {
     'com.example.tfg_definitivo2/alarm/events',
   );
 
+  // On web there is no platform implementation for these channels.
+  // Return an empty stream on web to avoid MissingPluginException.
   static Stream<String> get alarmEvents =>
-      _eventChannel.receiveBroadcastStream().cast<String>();
+      kIsWeb ? const Stream<String>.empty() : _eventChannel.receiveBroadcastStream().cast<String>();
 
   static Future<void> startAlarmActivity() async {
     try {
@@ -175,8 +179,8 @@ class WeatherWidget extends StatefulWidget {
     required this.latitude,
     required this.longitude,
     this.locationName,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<WeatherWidget> createState() => _WeatherWidgetState();
@@ -443,6 +447,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<int> _pinnedAlarmIds = <int>[];
   final GlobalKey<AnimatedListState> _animatedListKey = GlobalKey<AnimatedListState>();
   int? _lastActivatedAlarmId; // Para detectar qué alarma se activó recientemente
+  // Índice seleccionado en la barra de navegación inferior
+  int _selectedNavIndex = 0;
 
   Map<String, dynamic>? _lastDeletedAlarma;
   List<LatLng> _lastRoute = [];
@@ -461,9 +467,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _audioManager.registerPlayer(_globalAlarmPlayer);
     
     _initialize();
-    AlarmHelper.alarmEvents.listen((event) {
-      if (event == 'alarm_stopped') _onAlarmStopped();
-    });
+    // The native EventChannel used by AlarmHelper is not available on web.
+    // Avoid subscribing on web to prevent MissingPluginException.
+    if (!kIsWeb) {
+      AlarmHelper.alarmEvents.listen((event) {
+        if (event == 'alarm_stopped') _onAlarmStopped();
+      });
+    }
     
     // Observar cambios en el ciclo de vida de la app
     WidgetsBinding.instance.addObserver(this);
@@ -1552,7 +1562,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 ),
                 Switch(
-                  activeColor: theme.colorScheme.primary,
+                  activeThumbColor: theme.colorScheme.primary,
                   value: isActive,
                   onChanged: (val) => _toggleAlarmaActiva(alarma['id'], val),
                 ),
@@ -1837,47 +1847,87 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _buildBottomNavigation(ThemeData theme) {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        gradient: theme.brightness == Brightness.dark 
-            ? null
-            : LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  theme.colorScheme.primary,
-                  Colors.black,
-                ],
-                stops: const [0.0, 1.0],
-              ),
-        color: theme.brightness == Brightness.dark 
-            ? const Color(0xFF1C1C1E)
-            : null,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+    // Usar BottomNavigationBar nativo para mejor accesibilidad, facilidad de uso
+    // y para respetar automáticamente los insets (safe area).
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.brightness == Brightness.dark
+              ? Colors.black.withOpacity(0.6)
+              : Colors.white.withOpacity(0.92),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
-        border: theme.brightness == Brightness.dark
-            ? Border(
-                top: BorderSide(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 1,
-                ),
-              )
-            : null,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(CupertinoIcons.home, AppLocalizations.of(context).home, true),
-          _buildNavItem(CupertinoIcons.add, AppLocalizations.of(context).newTab, false),
-          _buildNavItem(CupertinoIcons.mic, 'Voz', false),
-          _buildNavItem(CupertinoIcons.settings, AppLocalizations.of(context).settings, false),
-        ],
+        child: BottomNavigationBar(
+          currentIndex: _selectedNavIndex,
+          onTap: (index) {
+            setState(() {
+              _selectedNavIndex = index;
+            });
+            // Comportamientos por pestaña
+            switch (index) {
+              case 0:
+                // Inicio: simplemente permanecer en la pantalla principal
+                break;
+              case 1:
+                _showCreateAlarmaDialog();
+                break;
+              case 2:
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const VoiceTestPage()),
+                );
+                break;
+              case 3:
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                );
+                break;
+            }
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: Colors.redAccent,
+          unselectedItemColor: theme.textTheme.bodySmall?.color?.withOpacity(0.7) ?? Colors.grey,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          showUnselectedLabels: true,
+          iconSize: 26,
+          items: [
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.home),
+              label: AppLocalizations.of(context).home,
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.add),
+              label: AppLocalizations.of(context).newTab,
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.mic),
+              label: 'Voz',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.settings),
+              label: AppLocalizations.of(context).settings,
+            ),
+          ],
+        ),
       ),
     );
   }
+  
 
   Widget _buildNavItem(IconData icon, String label, bool isActive) {
     return GestureDetector(
@@ -1897,28 +1947,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive 
-              ? (Theme.of(context).brightness == Brightness.dark 
-                  ? Colors.white.withOpacity(0.1) 
-                  : Colors.white.withOpacity(0.2))
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: Colors.white,
-              size: 24,
+            // Icon with optional selected background
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isActive ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: isActive
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isActive ? Colors.redAccent : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87),
+              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isActive ? Colors.redAccent : (Theme.of(context).textTheme.bodySmall?.color ?? Colors.black54),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),

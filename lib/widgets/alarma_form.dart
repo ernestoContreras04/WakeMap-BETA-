@@ -81,18 +81,29 @@ class _AlarmaFormState extends State<AlarmaForm> {
       _rangoCtrl.text = defaultRadius.toInt().toString();
       
       // Solicitar permisos de ubicación
-      if (await _location.requestPermission() != loc.PermissionStatus.granted) {
+      final perm = await _location.requestPermission();
+      if (perm != loc.PermissionStatus.granted) {
         _showMsg('Permiso de ubicación denegado');
         if (mounted) setState(() => _loading = false);
         return;
       }
-      
-      final locData = await _location.getLocation();
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _updateDestino(LatLng(locData.latitude!, locData.longitude!));
-        });
+
+      // Obtener ubicación con timeout para evitar quedarse colgado en web
+      try {
+        final locData = await _location.getLocation().timeout(const Duration(seconds: 10));
+        if (locData.latitude == null || locData.longitude == null) {
+          throw Exception('Ubicación no disponible');
+        }
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _updateDestino(LatLng(locData.latitude!, locData.longitude!));
+          });
+        }
+      } catch (e) {
+        // Si hay un problema (timeout, permiso o API no disponible), dejar la pantalla editable
+        _showMsg('No se pudo obtener la ubicación automáticamente. Busca una ubicación o usa el mapa.');
+        if (mounted) setState(() => _loading = false);
       }
     } catch (e) {
       _showMsg('Error al obtener la ubicación');
@@ -102,17 +113,25 @@ class _AlarmaFormState extends State<AlarmaForm> {
 
   Future<void> _initLocation() async {
     try {
-      if (await _location.requestPermission() != loc.PermissionStatus.granted) {
+      final perm = await _location.requestPermission();
+      if (perm != loc.PermissionStatus.granted) {
         _showMsg('Permiso de ubicación denegado');
         if (mounted) setState(() => _loading = false);
         return;
       }
-      final locData = await _location.getLocation();
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _updateDestino(LatLng(locData.latitude!, locData.longitude!));
-        });
+
+      try {
+        final locData = await _location.getLocation().timeout(const Duration(seconds: 10));
+        if (locData.latitude == null || locData.longitude == null) throw Exception('Ubicación no disponible');
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _updateDestino(LatLng(locData.latitude!, locData.longitude!));
+          });
+        }
+      } catch (e) {
+        _showMsg('No se pudo obtener la ubicación automáticamente. Busca una ubicación o usa el mapa.');
+        if (mounted) setState(() => _loading = false);
       }
     } catch (e) {
       _showMsg('Error al obtener la ubicación');
