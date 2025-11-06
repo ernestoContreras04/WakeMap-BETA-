@@ -83,8 +83,8 @@ Reglas:
   /// Llama a la API de Gemini
   Future<String?> _callGeminiAPI(String prompt) async {
     try {
-      // Usar gemini-flash-latest que está disponible
-      final url = '$_baseUrl/models/gemini-flash-latest:generateContent?key=$_apiKey';
+  // Usar gemini-2.5-flash según preferencia del proyecto
+  final url = '$_baseUrl/models/gemini-2.5-flash:generateContent?key=$_apiKey';
       
       final requestBody = {
         'contents': [
