@@ -1,11 +1,11 @@
 {
-    "name": "tfg_definitivo2",
-    "short_name": "tfg_definitivo2",
+    "name": "Wake-Map",
+    "short_name": "Wake-Map",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Wake-Map — alarmas por proximidad con mapas y voz.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
