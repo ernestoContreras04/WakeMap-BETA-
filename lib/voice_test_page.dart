@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:logger/logger.dart';
 import 'voice_alarm_service.dart';
 import 'voice_alarm_interface.dart';
 
@@ -12,7 +11,6 @@ class VoiceTestPage extends StatefulWidget {
 
 class _VoiceTestPageState extends State<VoiceTestPage> {
   final VoiceAlarmService _voiceService = VoiceAlarmService();
-  final Logger _logger = Logger();
   
   String _testResult = '';
   bool _isLoading = false;
