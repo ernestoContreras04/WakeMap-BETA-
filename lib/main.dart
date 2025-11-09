@@ -12,6 +12,9 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+// Imports condicionales solo para web - usando stubs para evitar errores en compilación móvil
+import 'web_stub.dart' as js_util if (dart.library.html) 'dart:js_util';
+import 'web_stub.dart' as html if (dart.library.html) 'dart:html';
 
 import 'database_helper.dart';
 import 'create_alarma_page.dart';
@@ -24,6 +27,7 @@ import 'l10n/app_localizations.dart';
 import 'alarm_sounds.dart';
 import 'voice_test_page.dart';
 import 'widgets/glass_navbar.dart';
+import 'env.dart';
 
 // Singleton global para manejar todos los players de audio
 class GlobalAudioManager {
@@ -68,6 +72,11 @@ class AlarmHelper {
       kIsWeb ? const Stream<String>.empty() : _eventChannel.receiveBroadcastStream().cast<String>();
 
   static Future<void> startAlarmActivity() async {
+    if (kIsWeb) {
+      // En web no hay actividad nativa de alarma, solo reproducir sonido
+      // El sonido ya se reproduce en _playAlarmSound()
+      return;
+    }
     try {
       await _channel.invokeMethod('startAlarm');
     } on PlatformException catch (e) {
@@ -1092,74 +1101,242 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     if (routePoints.isEmpty) return;
 
-    setState(() {
-      _polylines
-        ..clear()
-        ..add(
-          Polyline(
-            polylineId: const PolylineId('route'),
-            points: routePoints,
-            width: 5,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        );
-      _markers
-        ..clear()
-        ..add(
-          Marker(
-            markerId: const MarkerId('dest'),
-            position: LatLng(lat, lng),
-            infoWindow: InfoWindow(title: activa['nombre']),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRose,
+    if (mounted) {
+      setState(() {
+        _polylines
+          ..clear()
+          ..add(
+            Polyline(
+              polylineId: const PolylineId('route'),
+              points: routePoints,
+              width: 5,
+              color: Theme.of(context).colorScheme.primary,
             ),
-          ),
-        );
-      _circles
-        ..clear()
-        ..add(
-          Circle(
-            circleId: const CircleId('rango_activacion'),
-            center: LatLng(lat, lng),
-            radius: rango,
-            fillColor: Colors.blue.withOpacity(0.2),
-            strokeColor: Colors.blueAccent,
-            strokeWidth: 2,
-          ),
-        );
-      _lastRoute = routePoints;
-      _lastDest = LatLng(lat, lng);
-      _lastOrig = LatLng(oLat, oLng);
-      _centered = true;
-    });
+          );
+        _markers
+          ..clear()
+          ..add(
+            Marker(
+              markerId: const MarkerId('dest'),
+              position: LatLng(lat, lng),
+              infoWindow: InfoWindow(title: activa['nombre']),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueRose,
+              ),
+            ),
+          );
+        _circles
+          ..clear()
+          ..add(
+            Circle(
+              circleId: const CircleId('rango_activation'),
+              center: LatLng(lat, lng),
+              radius: rango,
+              fillColor: Colors.blue.withOpacity(0.2),
+              strokeColor: Colors.blueAccent,
+              strokeWidth: 2,
+            ),
+          );
+        _lastRoute = routePoints;
+        _lastDest = LatLng(lat, lng);
+        _lastOrig = LatLng(oLat, oLng);
+        _centered = true;
+      });
 
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngBounds(_bounds(routePoints), 50),
-    );
+      // Esperar un frame antes de animar la cámara para asegurar que el mapa esté listo
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _mapController != null) {
+          try {
+            _mapController!.animateCamera(
+              CameraUpdate.newLatLngBounds(_bounds(routePoints), 50),
+            );
+          } catch (e) {
+            debugPrint('Error animating camera: $e');
+            // Si falla, intentar simplemente mover la cámara
+            _mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(
+                  target: LatLng((oLat + lat) / 2, (oLng + lng) / 2),
+                  zoom: 13,
+                ),
+              ),
+            );
+          }
+        }
+      });
+    }
   }
 
   Future<List<LatLng>> _fetchRouteFromAPI(double oLat, double oLng, double lat, double lng, String cacheKey, SharedPreferences prefs, int now) async {
-    final url =
-        'https://maps.googleapis.com/maps/api/directions/json?origin=$oLat,$oLng&destination=$lat,$lng&key=AIzaSyB5Nc_EBy8tO9Wyh0K0B96RDkN9d-MET_4';
-    
     try {
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
-      final data = json.decode(res.body);
+      if (kIsWeb) {
+        // En web, usar JavaScript interop para evitar problemas de CORS
+        return await _fetchRouteFromJS(oLat, oLng, lat, lng, cacheKey, prefs, now);
+      } else {
+        // En Android/iOS, usar petición HTTP normal
+        final url =
+            'https://maps.googleapis.com/maps/api/directions/json?origin=$oLat,$oLng&destination=$lat,$lng&key=$googleMapsApiKey';
+        
+        final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+        final data = json.decode(res.body);
 
-      if ((data['routes'] as List).isEmpty) return [];
+        if ((data['routes'] as List).isEmpty) return [];
 
-      final encoded = data['routes'][0]['overview_polyline']['points'];
-      final routePoints = _decodePolyline(encoded);
-      
-      // Guardar en caché de forma optimizada
-      final routeData = routePoints.map((point) => {'lat': point.latitude, 'lng': point.longitude}).toList();
-      await prefs.setString(cacheKey, jsonEncode(routeData));
-      await prefs.setInt('${cacheKey}_time', now);
-      
-      return routePoints;
+        final encoded = data['routes'][0]['overview_polyline']['points'];
+        final routePoints = _decodePolyline(encoded);
+        
+        // Guardar en caché de forma optimizada
+        final routeData = routePoints.map((point) => {'lat': point.latitude, 'lng': point.longitude}).toList();
+        await prefs.setString(cacheKey, jsonEncode(routeData));
+        await prefs.setInt('${cacheKey}_time', now);
+        
+        return routePoints;
+      }
     } catch (e) {
       debugPrint('Error fetching route: $e');
-      return [];
+      // En caso de error, devolver una línea recta simple como fallback
+      return [
+        LatLng(oLat, oLng),
+        LatLng(lat, lng),
+      ];
+    }
+  }
+
+  Future<List<LatLng>> _fetchRouteFromJS(double oLat, double oLng, double lat, double lng, String cacheKey, SharedPreferences prefs, int now) async {
+    // Esta función solo se usa en web, pero necesitamos un stub para compilación móvil
+    if (!kIsWeb) {
+      return await _fetchRouteFromHTTP(oLat, oLng, lat, lng, cacheKey, prefs, now);
+    }
+
+    try {
+
+      // Código específico de web - solo se ejecuta cuando kIsWeb es true
+      // Esperar a que Google Maps JS esté cargado
+      int waited = 0;
+      const maxWaitMs = 5000;
+      while (waited < maxWaitMs) {
+        final globalThis = js_util.globalThis;
+        final hasGoogle = js_util.hasProperty(globalThis, 'google') &&
+            js_util.hasProperty(js_util.getProperty(globalThis, 'google'), 'maps');
+        final hasFetchDirections = js_util.hasProperty(html.window, 'fetchDirections');
+        if (hasGoogle && hasFetchDirections) break;
+        await Future.delayed(const Duration(milliseconds: 100));
+        waited += 100;
+      }
+
+      // Verificar que la función fetchDirections existe
+      if (!js_util.hasProperty(html.window, 'fetchDirections')) {
+        debugPrint('fetchDirections function not found, falling back to HTTP');
+        return await _fetchRouteFromHTTP(oLat, oLng, lat, lng, cacheKey, prefs, now);
+      }
+
+      // Crear completer para el callback
+      final completer = Completer<Map<String, dynamic>>();
+      
+      // Crear callback para JavaScript
+      final callback = js_util.allowInterop((result) {
+        try {
+          final dartified = js_util.dartify(result);
+          if (dartified == null) {
+            completer.complete(<String, dynamic>{'success': false, 'error': 'null result'});
+            return;
+          }
+          
+          // Convertir LinkedMap a Map<String, dynamic>
+          final Map<String, dynamic> dartResult;
+          if (dartified is Map) {
+            dartResult = Map<String, dynamic>.from(dartified.map((key, value) => 
+              MapEntry(key.toString(), value)
+            ));
+          } else {
+            completer.complete(<String, dynamic>{'success': false, 'error': 'invalid result type'});
+            return;
+          }
+          
+          completer.complete(dartResult);
+        } catch (e) {
+          debugPrint('Error in JS callback: $e');
+          completer.complete(<String, dynamic>{'success': false, 'error': e.toString()});
+        }
+      });
+
+      // Llamar a la función JavaScript directamente desde window
+      js_util.callMethod(html.window, 'fetchDirections', [
+        oLat,
+        oLng,
+        lat,
+        lng,
+        callback,
+      ]);
+
+      // Esperar resultado con timeout
+      final result = await completer.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint('Timeout waiting for directions from JS');
+          return <String, dynamic>{'success': false, 'error': 'timeout'};
+        },
+      );
+
+      if (result['success'] == true && result['encoded'] != null) {
+        final encoded = result['encoded'] as String;
+        final routePoints = _decodePolyline(encoded);
+        
+        // Guardar en caché
+        final routeData = routePoints.map((point) => {'lat': point.latitude, 'lng': point.longitude}).toList();
+        await prefs.setString(cacheKey, jsonEncode(routeData));
+        await prefs.setInt('${cacheKey}_time', now);
+        
+        return routePoints;
+      } else {
+        debugPrint('Error from JS directions service: ${result['error']}');
+        // Fallback a petición HTTP
+        return await _fetchRouteFromHTTP(oLat, oLng, lat, lng, cacheKey, prefs, now);
+      }
+    } catch (e) {
+      debugPrint('Error calling JS directions service: $e');
+      // Fallback a petición HTTP
+      return await _fetchRouteFromHTTP(oLat, oLng, lat, lng, cacheKey, prefs, now);
+    }
+  }
+
+  Future<List<LatLng>> _fetchRouteFromHTTP(double oLat, double oLng, double lat, double lng, String cacheKey, SharedPreferences prefs, int now) async {
+    try {
+      // Intentar petición HTTP directa (puede fallar por CORS en algunos navegadores)
+      final url =
+          'https://maps.googleapis.com/maps/api/directions/json?origin=$oLat,$oLng&destination=$lat,$lng&key=$googleMapsApiKey';
+      
+      final res = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+
+        if ((data['routes'] as List).isEmpty) {
+          return [LatLng(oLat, oLng), LatLng(lat, lng)];
+        }
+
+        final encoded = data['routes'][0]['overview_polyline']['points'];
+        final routePoints = _decodePolyline(encoded);
+        
+        // Guardar en caché
+        final routeData = routePoints.map((point) => {'lat': point.latitude, 'lng': point.longitude}).toList();
+        await prefs.setString(cacheKey, jsonEncode(routeData));
+        await prefs.setInt('${cacheKey}_time', now);
+        
+        return routePoints;
+      } else {
+        debugPrint('HTTP error: ${res.statusCode}');
+        return [LatLng(oLat, oLng), LatLng(lat, lng)];
+      }
+    } catch (e) {
+      debugPrint('Error in _fetchRouteFromHTTP: $e');
+      // Último recurso: línea recta
+      return [LatLng(oLat, oLng), LatLng(lat, lng)];
     }
   }
 
@@ -1237,7 +1414,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     try {
-      final url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=$latitude,$longitude&key=AIzaSyB5Nc_EBy8tO9Wyh0K0B96RDkN9d-MET_4&language=es';
+      final url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=$latitude,$longitude&key=$googleMapsApiKey&language=es';
       final response = await http.get(Uri.parse(url));
       
       if (response.statusCode == 200) {
@@ -1826,22 +2003,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                       zoom: 14,
                                     ),
                                     onMapCreated: (c) {
-                                      _mapController = c;
-                                      // Centrar inmediatamente después de crear el mapa
-                                      c.animateCamera(
-                                        CameraUpdate.newCameraPosition(
-                                          CameraPosition(
-                                            target: LatLng(
-                                              _currentLocation!.latitude!,
-                                              _currentLocation!.longitude!,
-                                            ),
-                                            zoom: 14,
-                                          ),
-                                        ),
-                                      );
+                                      if (mounted) {
+                                        _mapController = c;
+                                        // Centrar inmediatamente después de crear el mapa
+                                        // Usar addPostFrameCallback para asegurar que el mapa esté completamente inicializado
+                                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                                          if (mounted && _mapController != null && _currentLocation != null) {
+                                            try {
+                                              _mapController!.animateCamera(
+                                                CameraUpdate.newCameraPosition(
+                                                  CameraPosition(
+                                                    target: LatLng(
+                                                      _currentLocation!.latitude!,
+                                                      _currentLocation!.longitude!,
+                                                    ),
+                                                    zoom: 14,
+                                                  ),
+                                                ),
+                                              );
+                                              // Después de centrar, dibujar la ruta si hay una alarma activa
+                                              _drawRoute();
+                                            } catch (e) {
+                                              debugPrint('Error centering map: $e');
+                                            }
+                                          }
+                                        });
+                                      }
                                     },
-                                    myLocationEnabled: true,
-                                    myLocationButtonEnabled: false, // Deshabilitar para carga más rápida
+                                    myLocationEnabled: true, // Mostrar punto azul de ubicación
+                                    myLocationButtonEnabled: false, // Mantener UI limpia
                                     polylines: _polylines,
                                     markers: _markers,
                                     circles: _circles,

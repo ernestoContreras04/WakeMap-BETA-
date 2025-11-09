@@ -35,10 +35,123 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <!-- Google Maps JavaScript API: replace YOUR_API_KEY with your key and enable Maps JavaScript API and Places API in Google Cloud Console -->
-  <!-- Example: https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places,geometry -->
-  <!-- Load Google Maps JS optimally: async + defer helps performance. The 'callback' param is optional; Flutter's map plugin initializes when ready. -->
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBGd9KC_n1FjSgUfn5_Np7XKP7AM2L98_Q&libraries=places,geometry"></script>
+  <!-- Google Maps JavaScript API: Using the same API key as Android for consistency -->
+  <!-- Load Google Maps JS optimally: async + defer + loading=async helps performance -->
+  <!-- Note: geometry library is needed for polyline encoding/decoding -->
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB5Nc_EBy8tO9Wyh0K0B96RDkN9d-MET_4&libraries=places,geometry&loading=async" onload="initDirectionsService()"></script>
+
+  <!-- Helper functions using Google Maps JavaScript API (avoids CORS issues) -->
+  <script>
+    let directionsServiceReady = false;
+    let directionsService = null;
+    let placesServiceReady = false;
+    let placesService = null;
+    let placesAutocompleteServiceReady = false;
+    let placesAutocompleteService = null;
+
+    function initDirectionsService() {
+      if (typeof google !== 'undefined' && google.maps && google.maps.DirectionsService) {
+        directionsService = new google.maps.DirectionsService();
+        directionsServiceReady = true;
+        console.log('Directions service initialized');
+      }
+      
+      // Inicializar servicio de Places
+      if (typeof google !== 'undefined' && google.maps && google.maps.places) {
+        // Crear un div oculto para el PlacesService
+        const hiddenDiv = document.createElement('div');
+        hiddenDiv.style.display = 'none';
+        document.body.appendChild(hiddenDiv);
+        
+        placesService = new google.maps.places.PlacesService(hiddenDiv);
+        placesAutocompleteService = new google.maps.places.AutocompleteService();
+        placesServiceReady = true;
+        placesAutocompleteServiceReady = true;
+        console.log('Places service initialized');
+      }
+    }
+
+    // Function to fetch directions and return encoded polyline
+    window.fetchDirections = function(originLat, originLng, destLat, destLng, callback) {
+      if (!directionsServiceReady) {
+        // Wait a bit and retry
+        setTimeout(() => {
+          if (directionsServiceReady) {
+            window.fetchDirections(originLat, originLng, destLat, destLng, callback);
+          } else {
+            callback({ success: false, error: 'Directions service not ready' });
+          }
+        }, 500);
+        return;
+      }
+
+      directionsService.route({
+        origin: new google.maps.LatLng(originLat, originLng),
+        destination: new google.maps.LatLng(destLat, destLng),
+        travelMode: google.maps.TravelMode.DRIVING,
+      }, function(result, status) {
+        if (status === 'OK' && result.routes && result.routes.length > 0) {
+          const route = result.routes[0];
+          const encoded = route.overview_polyline.points;
+          callback({ success: true, encoded: encoded });
+        } else {
+          callback({ success: false, error: status });
+        }
+      });
+    };
+
+    // Function to search for a place using Google Places API
+    window.searchPlace = function(query, callback) {
+      if (!placesServiceReady || !placesAutocompleteServiceReady) {
+        // Wait a bit and retry
+        setTimeout(() => {
+          if (placesServiceReady && placesAutocompleteServiceReady) {
+            window.searchPlace(query, callback);
+          } else {
+            callback({ success: false, error: 'Places service not ready' });
+          }
+        }, 500);
+        return;
+      }
+
+      try {
+        // Usar AutocompleteService para buscar
+        placesAutocompleteService.getPlacePredictions({
+          input: query,
+          types: ['geocode'],
+          language: 'es'
+        }, function(predictions, status) {
+          if (status === google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
+            // Obtener el primer resultado y sus detalles
+            const placeId = predictions[0].place_id;
+            
+            // Obtener detalles del lugar
+            placesService.getDetails({
+              placeId: placeId,
+              fields: ['formatted_address', 'geometry', 'name']
+            }, function(place, detailsStatus) {
+              if (detailsStatus === google.maps.places.PlacesServiceStatus.OK && place && place.geometry && place.geometry.location) {
+                const location = place.geometry.location;
+                callback({
+                  success: true,
+                  latitude: location.lat(),
+                  longitude: location.lng(),
+                  address: place.formatted_address || place.name || query
+                });
+              } else {
+                callback({ success: false, error: detailsStatus || 'No location found' });
+              }
+            });
+          } else {
+            callback({ success: false, error: status || 'No predictions found' });
+          }
+        });
+      } catch (error) {
+        console.error('Error in searchPlace:', error);
+        callback({ success: false, error: error.toString() });
+      }
+    };
+  </script>
 
   <script src="flutter_bootstrap.js" async></script>
 </body>

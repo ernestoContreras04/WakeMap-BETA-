@@ -8,6 +8,10 @@ import 'package:geocoding/geocoding.dart' as geo;
 import 'package:tfg_definitivo2/env.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'web_stub.dart' as js_util if (dart.library.html) 'dart:js_util';
+import 'web_stub.dart' as html if (dart.library.html) 'dart:html';
+import 'dart:async';
 
 class VoiceTestPage extends StatefulWidget {
   const VoiceTestPage({super.key});
@@ -158,21 +162,54 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
           }
         } else {
           // 2. Si no está en personalizadas, buscar con Google Places API
+          if (mounted) {
+            setState(() {
+              _statusMessage = '🔍 Buscando ubicación: ${alarmData.location}...';
+            });
+          }
+          
           final placesResult = await _searchLocationWithGooglePlaces(alarmData.location);
           if (placesResult != null) {
             latitude = placesResult['latitude'];
             longitude = placesResult['longitude'];
             address = placesResult['address'] ?? alarmData.location;
+            
+            if (mounted) {
+              setState(() {
+                _statusMessage = '✅ Ubicación encontrada: $address';
+              });
+            }
           } else {
-            // 3. Fallback a geocoding si Places API no funciona
-            final locations = await geo.locationFromAddress(alarmData.location);
-            if (locations.isNotEmpty) {
-              latitude = locations.first.latitude;
-              longitude = locations.first.longitude;
+            // 3. Fallback a geocoding si Places API no funciona (solo si no es web o si falla JS)
+            if (mounted) {
+              setState(() {
+                _statusMessage = '🔍 Intentando geocoding...';
+              });
+            }
+            
+            try {
+              final locations = await geo.locationFromAddress(alarmData.location).timeout(
+                const Duration(seconds: 5),
+              );
+              if (locations.isNotEmpty) {
+                latitude = locations.first.latitude;
+                longitude = locations.first.longitude;
+                address = alarmData.location;
+                
+                if (mounted) {
+                  setState(() {
+                    _statusMessage = '✅ Ubicación encontrada mediante geocoding';
+                  });
+                }
+              }
+            } catch (geocodingError) {
+              debugPrint('Geocoding error: $geocodingError');
+              // Continuar para mostrar el mensaje de error más abajo
             }
           }
         }
       } catch (e) {
+        debugPrint('Error buscando ubicación: $e');
         // Si falla, mostrar mensaje
         if (mounted) {
           setState(() {
@@ -693,26 +730,126 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
   /// Busca una ubicación usando Google Places API
   Future<Map<String, dynamic>?> _searchLocationWithGooglePlaces(String query) async {
     try {
-      final apiKey = googleMapsApiKey;
-      final url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${Uri.encodeComponent(query)}&inputtype=textquery&fields=formatted_address,geometry&key=$apiKey&language=es';
-      
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-      final data = json.decode(response.body);
-      
-      if (data['status'] == 'OK' && data['candidates'] != null && data['candidates'].isNotEmpty) {
-        final candidate = data['candidates'][0];
-        final geometry = candidate['geometry'];
-        final location = geometry['location'];
+      if (kIsWeb) {
+        // En web, usar JavaScript interop para evitar problemas de CORS
+        return await _searchPlaceWithJS(query);
+      } else {
+        // En Android/iOS, usar petición HTTP normal
+        final apiKey = googleMapsApiKey;
+        final url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${Uri.encodeComponent(query)}&inputtype=textquery&fields=formatted_address,geometry&key=$apiKey&language=es';
         
-        return {
-          'latitude': location['lat'] as double,
-          'longitude': location['lng'] as double,
-          'address': candidate['formatted_address'] as String,
-        };
+        final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+        final data = json.decode(response.body);
+        
+        if (data['status'] == 'OK' && data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final candidate = data['candidates'][0];
+          final geometry = candidate['geometry'];
+          final location = geometry['location'];
+          
+          return {
+            'latitude': location['lat'] as double,
+            'longitude': location['lng'] as double,
+            'address': candidate['formatted_address'] as String,
+          };
+        }
+        
+        return null;
       }
-      
-      return null;
     } catch (e) {
+      debugPrint('Error searching place: $e');
+      return null;
+    }
+  }
+
+  /// Busca una ubicación usando JavaScript interop (solo web)
+  Future<Map<String, dynamic>?> _searchPlaceWithJS(String query) async {
+    // Esta función solo se usa en web, pero necesitamos un stub para compilación móvil
+    if (!kIsWeb) {
+      return null;
+    }
+
+    try {
+      // Código específico de web - solo se ejecuta cuando kIsWeb es true
+      // Esperar a que Google Maps JS esté cargado
+      int waited = 0;
+      const maxWaitMs = 5000;
+      while (waited < maxWaitMs) {
+        final globalThis = js_util.globalThis;
+        final hasGoogle = js_util.hasProperty(globalThis, 'google') &&
+            js_util.hasProperty(js_util.getProperty(globalThis, 'google'), 'maps');
+        final hasSearchPlace = js_util.hasProperty(html.window, 'searchPlace');
+        if (hasGoogle && hasSearchPlace) break;
+        await Future.delayed(const Duration(milliseconds: 100));
+        waited += 100;
+      }
+
+      // Verificar que la función searchPlace existe
+      if (!js_util.hasProperty(html.window, 'searchPlace')) {
+        debugPrint('searchPlace function not found, falling back to geocoding');
+        return null;
+      }
+
+      // Crear completer para el callback
+      final completer = Completer<Map<String, dynamic>?>();
+      
+      // Crear callback para JavaScript
+      final callback = js_util.allowInterop((result) {
+        try {
+          final dartified = js_util.dartify(result);
+          if (dartified == null) {
+            completer.complete(null);
+            return;
+          }
+          
+          // Convertir LinkedMap a Map<String, dynamic>
+          final Map<String, dynamic> dartResult;
+          if (dartified is Map) {
+            dartResult = Map<String, dynamic>.from(dartified.map((key, value) => 
+              MapEntry(key.toString(), value)
+            ));
+          } else {
+            completer.complete(null);
+            return;
+          }
+          
+          if (dartResult['success'] == true) {
+            final lat = dartResult['latitude'];
+            final lng = dartResult['longitude'];
+            final addr = dartResult['address'];
+            
+            if (lat != null && lng != null && addr != null) {
+              completer.complete({
+                'latitude': (lat is num) ? lat.toDouble() : double.parse(lat.toString()),
+                'longitude': (lng is num) ? lng.toDouble() : double.parse(lng.toString()),
+                'address': addr.toString(),
+              });
+            } else {
+              completer.complete(null);
+            }
+          } else {
+            completer.complete(null);
+          }
+        } catch (e) {
+          debugPrint('Error in JS callback: $e');
+          completer.complete(null);
+        }
+      });
+
+      // Llamar a la función JavaScript directamente desde window
+      js_util.callMethod(html.window, 'searchPlace', [query, callback]);
+
+      // Esperar resultado con timeout
+      final result = await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('Timeout waiting for place search from JS');
+          return null;
+        },
+      );
+
+      return result;
+    } catch (e) {
+      debugPrint('Error calling JS place search: $e');
       return null;
     }
   }

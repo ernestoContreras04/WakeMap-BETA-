@@ -1,26 +1,82 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class DatabaseHelper {
   static DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
-  // Fallback in-memory storage for web builds (sqflite is not available on web)
+  // Fallback storage for web builds (sqflite is not available on web)
+  // Usamos SharedPreferences para persistencia en web
   final List<Map<String, dynamic>> _inMemoryAlarmas = <Map<String, dynamic>>[];
   final List<Map<String, dynamic>> _inMemoryCustomLocations = <Map<String, dynamic>>[];
+  bool _webDataLoaded = false;
 
   DatabaseHelper._init();
 
   Future<Database> get database async {
     if (kIsWeb) {
       // sqflite isn't supported on web; callers should use the same API but
-      // operations will be served from an in-memory list.
+      // operations will be served from SharedPreferences-backed storage.
+      if (!_webDataLoaded) {
+        await _loadWebData();
+      }
       throw UnsupportedError('Database is not available on web. Use fallback methods.');
     }
 
     if (_database != null) return _database!;
     _database = await _initDB('alarmas.db');
     return _database!;
+  }
+
+  /// Carga datos desde SharedPreferences en web
+  Future<void> _loadWebData() async {
+    if (!kIsWeb || _webDataLoaded) return;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Cargar alarmas
+      final alarmasJson = prefs.getString('web_alarmas');
+      if (alarmasJson != null) {
+        final List<dynamic> decoded = jsonDecode(alarmasJson);
+        _inMemoryAlarmas.clear();
+        _inMemoryAlarmas.addAll(decoded.map((e) => Map<String, dynamic>.from(e)));
+      }
+      
+      // Cargar ubicaciones personalizadas
+      final locationsJson = prefs.getString('web_custom_locations');
+      if (locationsJson != null) {
+        final List<dynamic> decoded = jsonDecode(locationsJson);
+        _inMemoryCustomLocations.clear();
+        _inMemoryCustomLocations.addAll(decoded.map((e) => Map<String, dynamic>.from(e)));
+      }
+      
+      _webDataLoaded = true;
+    } catch (e) {
+      // Si hay error, continuar con listas vacías
+      _webDataLoaded = true;
+    }
+  }
+
+  /// Guarda datos en SharedPreferences en web
+  Future<void> _saveWebData() async {
+    if (!kIsWeb) return;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Guardar alarmas
+      final alarmasJson = jsonEncode(_inMemoryAlarmas);
+      await prefs.setString('web_alarmas', alarmasJson);
+      
+      // Guardar ubicaciones personalizadas
+      final locationsJson = jsonEncode(_inMemoryCustomLocations);
+      await prefs.setString('web_custom_locations', locationsJson);
+    } catch (e) {
+      // Si hay error guardando, continuar
+    }
   }
 
   Future<Database> _initDB(String filePath) async {
@@ -102,11 +158,13 @@ class DatabaseHelper {
 
   Future<int> insertAlarma(Map<String, dynamic> alarma) async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       // assign a fake autoincrement id
       final nextId = (_inMemoryAlarmas.isEmpty) ? 1 : (_inMemoryAlarmas.map((a) => a['id'] as int).reduce((a, b) => a > b ? a : b) + 1);
       final copy = Map<String, dynamic>.from(alarma);
       copy['id'] = nextId;
       _inMemoryAlarmas.add(copy);
+      await _saveWebData();
       return nextId;
     }
 
@@ -120,6 +178,7 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getAlarmas() async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       // Return a copy to mimic DB behavior
       final list = List<Map<String, dynamic>>.from(_inMemoryAlarmas);
       // sort by activa desc, nombre asc
@@ -140,6 +199,7 @@ class DatabaseHelper {
   
   Future<List<Map<String, dynamic>>> getAlarmasActivas() async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       return _inMemoryAlarmas.where((a) => (a['activa'] ?? 0) == 1).toList();
     }
     final db = await instance.database;
@@ -148,7 +208,9 @@ class DatabaseHelper {
 
   Future<int> deleteAlarma(int id) async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       _inMemoryAlarmas.removeWhere((a) => a['id'] == id);
+      await _saveWebData();
       return 1;
     }
     final db = await instance.database;
@@ -157,9 +219,11 @@ class DatabaseHelper {
 
   Future<int> updateAlarma(Map<String, dynamic> alarma) async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       final idx = _inMemoryAlarmas.indexWhere((a) => a['id'] == alarma['id']);
       if (idx != -1) {
         _inMemoryAlarmas[idx] = Map<String, dynamic>.from(alarma);
+        await _saveWebData();
         return 1;
       }
       return 0;
@@ -176,10 +240,12 @@ class DatabaseHelper {
 
   Future<void> updateAllAlarmasActiva(int id, bool activar) async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       // Para web, actualizar en memoria
       for (var alarma in _inMemoryAlarmas) {
         alarma['activa'] = (alarma['id'] == id && activar) ? 1 : 0;
       }
+      await _saveWebData();
       return;
     }
 
@@ -198,6 +264,10 @@ class DatabaseHelper {
     if (kIsWeb) {
       _inMemoryAlarmas.clear();
       _inMemoryCustomLocations.clear();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('web_alarmas');
+      await prefs.remove('web_custom_locations');
+      _webDataLoaded = false;
       return;
     }
     final dbPath = await getDatabasesPath();
@@ -210,12 +280,14 @@ class DatabaseHelper {
 
   Future<int> insertCustomLocation(Map<String, dynamic> location) async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       final nextId = (_inMemoryCustomLocations.isEmpty) 
           ? 1 
           : (_inMemoryCustomLocations.map((l) => l['id'] as int).reduce((a, b) => a > b ? a : b) + 1);
       final copy = Map<String, dynamic>.from(location);
       copy['id'] = nextId;
       _inMemoryCustomLocations.add(copy);
+      await _saveWebData();
       return nextId;
     }
 
@@ -229,6 +301,7 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getCustomLocations() async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       return List<Map<String, dynamic>>.from(_inMemoryCustomLocations);
     }
 
@@ -245,6 +318,7 @@ class DatabaseHelper {
     cleanName = cleanName.trim();
     
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       // Buscar coincidencia exacta primero
       var location = _inMemoryCustomLocations.firstWhere(
         (l) => (l['nombre'] as String).toLowerCase() == cleanName,
@@ -291,9 +365,11 @@ class DatabaseHelper {
 
   Future<int> updateCustomLocation(Map<String, dynamic> location) async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       final idx = _inMemoryCustomLocations.indexWhere((l) => l['id'] == location['id']);
       if (idx != -1) {
         _inMemoryCustomLocations[idx] = Map<String, dynamic>.from(location);
+        await _saveWebData();
         return 1;
       }
       return 0;
@@ -310,7 +386,9 @@ class DatabaseHelper {
 
   Future<int> deleteCustomLocation(int id) async {
     if (kIsWeb) {
+      if (!_webDataLoaded) await _loadWebData();
       _inMemoryCustomLocations.removeWhere((l) => l['id'] == id);
+      await _saveWebData();
       return 1;
     }
     final db = await instance.database;
