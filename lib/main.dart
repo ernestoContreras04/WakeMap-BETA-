@@ -2059,12 +2059,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const VoiceTestPage()),
-            ).then((_) {
+            ).then((result) {
               // Cuando vuelves de VoiceTestPage, resetear a 0
               if (mounted) {
                 setState(() {
                   _selectedNavIndex = 0;
                 });
+                // Si se creó una alarma, recargar la lista
+                if (result == true) {
+                  _loadAlarmas();
+                }
               }
             });
             break;

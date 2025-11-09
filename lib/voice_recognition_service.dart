@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:logger/logger.dart';
@@ -63,9 +64,10 @@ class VoiceRecognitionService {
   /// Verifica si está escuchando actualmente
   bool get isListening => _isListening;
 
-  /// Inicia el reconocimiento de voz
+  /// Inicia el reconocimiento de voz con callback para resultados parciales
   Future<String?> startListening({
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 30),
+    Function(String)? onPartialResult,
   }) async {
     if (!_isInitialized) {
       _logger.e('❌ Servicio no inicializado');
@@ -80,42 +82,116 @@ class VoiceRecognitionService {
     try {
       _logger.d('🎤 Iniciando reconocimiento de voz...');
       
-      String? result;
-      bool completed = false;
+      // Verificar idiomas disponibles y usar el mejor disponible
+      final locales = await _speech.locales();
+      String? localeId = 'es_ES';
+      
+      // Intentar encontrar el mejor locale en español
+      final spanishLocales = locales.where((l) => 
+        l.localeId.startsWith('es')).toList();
+      if (spanishLocales.isNotEmpty) {
+        // Preferir es_ES, luego es_MX, luego cualquier otro español
+        localeId = spanishLocales.firstWhere(
+          (l) => l.localeId == 'es_ES',
+          orElse: () => spanishLocales.firstWhere(
+            (l) => l.localeId == 'es_MX',
+            orElse: () => spanishLocales.first,
+          ),
+        ).localeId;
+      } else if (locales.any((l) => l.localeId == 'es')) {
+        localeId = 'es';
+      } else {
+        localeId = null; // Usar el predeterminado del sistema
+      }
+      
+      _logger.d('🎤 Usando locale: $localeId');
+      
+      String? finalResult;
+      final completer = Completer<String?>();
+      
+      bool hasReceivedAnyResult = false;
 
       await _speech.listen(
         onResult: (speechResult) {
-          _logger.d('🎤 Texto reconocido: ${speechResult.recognizedWords}');
-          _logger.d('🎤 Es resultado final: ${speechResult.finalResult}');
-          _logger.d('🎤 Confianza: ${speechResult.confidence}');
+          final words = speechResult.recognizedWords;
+          final isFinal = speechResult.finalResult;
           
-          // Aceptar resultado si tiene confianza mínima o es resultado final
-          if (speechResult.finalResult || speechResult.confidence > 0.5) {
-            result = speechResult.recognizedWords;
-            completed = true;
+          _logger.d('🎤 Texto: "$words" | Final: $isFinal | Confianza: ${speechResult.confidence}');
+          
+          // Siempre mostrar resultados parciales
+          if (words.isNotEmpty) {
+            hasReceivedAnyResult = true;
+            finalResult = words; // Guardar siempre el último resultado (parcial o final)
+            
+            // Llamar callback con resultados parciales
+            if (onPartialResult != null) {
+              onPartialResult(words);
+            }
+          }
+          
+          // Si es resultado final y tiene contenido, completar
+          if (isFinal && words.isNotEmpty) {
+            _logger.d('🎤 Resultado final recibido: $finalResult');
+            if (!completer.isCompleted) {
+              completer.complete(finalResult);
+            }
           }
         },
         listenFor: timeout,
-        pauseFor: const Duration(seconds: 5), // Más tiempo para pausas
+        pauseFor: const Duration(seconds: 2), // Reducido para mejor respuesta
         partialResults: true,
-        localeId: 'es', // Usar 'es' en lugar de 'es_ES'
-        listenMode: stt.ListenMode.dictation, // Cambiar a dictation
+        localeId: localeId,
+        listenMode: stt.ListenMode.dictation,
+        cancelOnError: false,
+        onSoundLevelChange: (level) {
+          // Log cuando hay sonido para debugging
+          if (level > 0.01) {
+            _logger.d('🎤 Nivel de sonido: ${level.toStringAsFixed(2)}');
+          }
+        },
       );
-
-      // Esperar hasta que termine o se agote el tiempo
-      int attempts = 0;
-      while (!completed && attempts < (timeout.inSeconds * 10) && _isListening) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        attempts++;
-      }
-
-      await _speech.stop();
       
-      if (result != null && result!.isNotEmpty) {
-        _logger.d('🎤 Reconocimiento finalizado. Resultado: $result');
-        return result;
-      } else {
-        _logger.d('🎤 No se detectó voz o timeout alcanzado');
+      _logger.d('🎤 Reconocimiento iniciado, esperando resultados...');
+
+      // Esperar el resultado con timeout
+      // Si no hay resultado final después del timeout, usar el último resultado parcial
+      try {
+        // Esperar a que el reconocimiento termine o timeout
+        Timer? timeoutTimer;
+        bool isCompleted = false;
+        
+        timeoutTimer = Timer(timeout + const Duration(seconds: 2), () {
+          if (!isCompleted && !completer.isCompleted) {
+            _logger.d('🎤 Timeout esperando resultado final, usando último resultado parcial');
+            completer.complete(finalResult);
+          }
+        });
+        
+        final result = await completer.future;
+        isCompleted = true;
+        timeoutTimer.cancel();
+        
+        // Detener el reconocimiento
+        await _speech.stop();
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        if (result != null && result.isNotEmpty) {
+          _logger.d('🎤 Reconocimiento finalizado. Resultado: $result');
+          return result;
+        } else if (hasReceivedAnyResult && finalResult != null && finalResult!.isNotEmpty) {
+          _logger.d('🎤 Usando último resultado parcial: $finalResult');
+          return finalResult;
+        } else {
+          _logger.d('🎤 No se detectó voz o no hubo resultados');
+          return null;
+        }
+      } catch (e) {
+        _logger.e('❌ Error esperando resultado: $e');
+        await _speech.stop();
+        // Si tenemos algún resultado, usarlo
+        if (finalResult != null && finalResult!.isNotEmpty) {
+          return finalResult;
+        }
         return null;
       }
       
