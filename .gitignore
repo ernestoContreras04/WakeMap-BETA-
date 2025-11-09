@@ -46,3 +46,14 @@ app.*.map.json
 
 # Environment variables
 .env
+.env.local
+
+# API Keys y secretos (NO subir a GitHub)
+*_api_key.txt
+*_keys.txt
+lib/env.secrets.dart
+
+# Archivos de configuración con secretos
+**/secrets.dart
+**/*.secrets.dart
+**/*_secrets.dart

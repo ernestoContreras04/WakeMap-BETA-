@@ -11,6 +11,8 @@ import 'package:tfg_definitivo2/alarm_sounds.dart';
 import 'package:logger/logger.dart';
 import 'package:tfg_definitivo2/main.dart';
 import 'package:tfg_definitivo2/widgets/glass_navbar.dart';
+import 'package:tfg_definitivo2/env.dart';
+import 'package:tfg_definitivo2/voice_alarm_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -38,6 +40,9 @@ class _SettingsPageState extends State<SettingsPage> {
   final GlobalAudioManager _audioManager = GlobalAudioManager();
   String? _currentlyPlayingSound;
   bool _isPlaying = false;
+  String _geminiApiKey = '';
+  final TextEditingController _apiKeyController = TextEditingController();
+  final VoiceAlarmService _voiceService = VoiceAlarmService();
 
   @override
   void initState() {
@@ -47,6 +52,17 @@ class _SettingsPageState extends State<SettingsPage> {
     _audioManager.registerPlayer(_previewPlayer);
     
     _loadSettings();
+    _loadApiKey();
+  }
+
+  Future<void> _loadApiKey() async {
+    final key = await getGeminiApiKey();
+    if (mounted) {
+      setState(() {
+        _geminiApiKey = key;
+        _apiKeyController.text = _geminiApiKey;
+      });
+    }
   }
 
   @override
@@ -54,6 +70,7 @@ class _SettingsPageState extends State<SettingsPage> {
     // Desregistrar el player antes de disponerlo
     _audioManager.unregisterPlayer(_previewPlayer);
     _previewPlayer.dispose();
+    _apiKeyController.dispose();
     super.dispose();
   }
   
@@ -419,6 +436,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     onTap: _clearAllData,
                     isDestructive: true,
                   ),
+                ]),
+
+                const SizedBox(height: 24),
+                _buildSectionHeader('Configuración de API'),
+                _buildSettingsCard([
+                  _buildApiKeyTile(),
                 ]),
 
                 const SizedBox(height: 24),
@@ -1047,5 +1070,189 @@ class _SettingsPageState extends State<SettingsPage> {
       // Detener el sonido cuando se cierre el modal
       _stopSoundPreview();
     });
+  }
+
+  Widget _buildApiKeyTile() {
+    final hasApiKey = _geminiApiKey.isNotEmpty;
+    
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? Colors.purple.withOpacity(0.2)
+              : Colors.purple[50],
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          CupertinoIcons.lock,
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? Colors.purple[300]
+              : Colors.purple[600],
+          size: 20,
+        ),
+      ),
+      title: Text(
+        'Clave de API de Gemini',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+          color: Theme.of(context).textTheme.bodyMedium?.color,
+        ),
+      ),
+      subtitle: Text(
+        hasApiKey 
+            ? 'Configurada (${_geminiApiKey.substring(0, 10)}...)'
+            : 'Requerida para comandos de voz',
+        style: TextStyle(
+          color: hasApiKey 
+              ? Colors.green[600]
+              : Theme.of(context).textTheme.bodySmall?.color,
+          fontSize: 14,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasApiKey)
+            Icon(
+              CupertinoIcons.checkmark_circle_fill,
+              color: Colors.green[600],
+              size: 20,
+            ),
+          const SizedBox(width: 8),
+          Icon(
+            CupertinoIcons.chevron_right,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.grey[500]
+                : Colors.grey[400],
+            size: 16,
+          ),
+        ],
+      ),
+      onTap: _showApiKeyDialog,
+    );
+  }
+
+  void _showApiKeyDialog() {
+    // Actualizar el controlador con la clave actual antes de mostrar el diálogo
+    _apiKeyController.text = _geminiApiKey;
+    
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Configurar API Key de Gemini'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ingresa tu clave de API de Gemini. Puedes obtenerla en:',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'https://makersuite.google.com/app/apikey',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _apiKeyController,
+                  decoration: InputDecoration(
+                    labelText: 'API Key',
+                    hintText: 'Ingresa tu clave de API',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: _apiKeyController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setDialogState(() {
+                                _apiKeyController.clear();
+                              });
+                            },
+                          )
+                        : null,
+                  ),
+                  obscureText: true,
+                  onChanged: (value) {
+                    setDialogState(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'La clave se guardará de forma segura en tu dispositivo.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            if (_geminiApiKey.isNotEmpty)
+              TextButton(
+                onPressed: () async {
+                  await clearGeminiApiKey();
+                  await _voiceService.reloadApiKey();
+                  await _loadApiKey();
+                  if (mounted) {
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('API Key eliminada'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                },
+                child: const Text(
+                  'Eliminar',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ElevatedButton(
+              onPressed: () async {
+                final newKey = _apiKeyController.text.trim();
+                if (newKey.isNotEmpty) {
+                  await setGeminiApiKey(newKey);
+                  await _voiceService.reloadApiKey();
+                  await _loadApiKey();
+                  if (mounted) {
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('API Key guardada correctamente'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('Por favor ingresa una API Key válida'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

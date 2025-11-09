@@ -23,17 +23,34 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
     });
 
     try {
+      // Verificar primero si la API key está configurada
+      final isConfigured = await _voiceService.isApiKeyConfigured;
+      if (!isConfigured) {
+        setState(() {
+          _testResult = '''❌ Clave de API no configurada
+
+Para configurar tu clave de API de Gemini:
+1. Obtén una nueva clave en: https://makersuite.google.com/app/apikey
+2. Ve a Ajustes > Configuración de API en la app
+3. Ingresa tu clave de API
+
+Nota: La clave anterior fue reportada como filtrada y ya no funciona.''';
+          _isLoading = false;
+        });
+        return;
+      }
+
       final success = await _voiceService.testConnection();
       
       setState(() {
         _testResult = success 
-          ? '✅ Conexión exitosa con Gemini!' 
-          : '❌ Error conectando con Gemini';
+          ? '✅ Conexión exitosa con Gemini!\n\nLa API está funcionando correctamente.' 
+          : '❌ Error conectando con Gemini\n\nVerifica que tu clave de API sea válida y tenga los permisos necesarios.';
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _testResult = '❌ Error: $e';
+        _testResult = '❌ Error: $e\n\nVerifica la configuración de tu clave de API.';
         _isLoading = false;
       });
     }
@@ -46,6 +63,23 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
     });
 
     try {
+      // Verificar primero si la API key está configurada
+      final isConfigured = await _voiceService.isApiKeyConfigured;
+      if (!isConfigured) {
+        setState(() {
+          _testResult = '''❌ Clave de API no configurada
+
+Para configurar tu clave de API de Gemini:
+1. Obtén una nueva clave en: https://makersuite.google.com/app/apikey
+2. Ve a Ajustes > Configuración de API en la app
+3. Ingresa tu clave de API
+
+Nota: La clave anterior fue reportada como filtrada y ya no funciona.''';
+          _isLoading = false;
+        });
+        return;
+      }
+
       final result = await _voiceService.processVoiceCommand(command);
       
       setState(() {
@@ -60,13 +94,22 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
 🎯 Confianza: ${(result.confidence * 100).toInt()}%
 ''';
         } else {
-          _testResult = '❌ No se pudo procesar el comando';
+          _testResult = '''❌ No se pudo procesar el comando
+
+Posibles causas:
+- La clave de API no es válida
+- La clave fue reportada como filtrada
+- Error de conexión con la API
+
+Verifica los logs para más detalles.''';
         }
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _testResult = '❌ Error procesando comando: $e';
+        _testResult = '''❌ Error procesando comando: $e
+
+Verifica que tu clave de API esté correctamente configurada y sea válida.''';
         _isLoading = false;
       });
     }
@@ -208,7 +251,7 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
                             : Text(
                                 _testResult.isEmpty ? 'Presiona un botón para comenzar las pruebas' : _testResult,
                                 style: const TextStyle(
-                                  fontFamily: 'monospace',
+                                  fontFamily: 'SF Pro Display',
                                   fontSize: 14,
                                 ),
                               ),

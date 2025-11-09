@@ -46,8 +46,9 @@ WakeMap es una aplicación móvil que permite a los usuarios crear alarmas que s
    ```
 
 3. Configurar API Keys:
-   - Google Maps API Key: Ya configurada en el proyecto
-   - Open-Meteo API: No requiere configuración
+   - **Google Maps API Key**: Ya configurada en el proyecto
+   - **Gemini API Key**: Requerida para comandos de voz (ver sección "Configuración de Gemini API" más abajo)
+   - **Open-Meteo API**: No requiere configuración
 
 ### Configuración de Android
 
@@ -60,6 +61,110 @@ La aplicación ya está configurada para Android con:
 ### Configuración de iOS
 
 Ver el archivo `ios/README.md` para instrucciones detalladas de configuración de iOS.
+
+### Configuración de Gemini API
+
+La aplicación utiliza la API de Gemini de Google para procesar comandos de voz. **Es necesario configurar tu propia clave de API**.
+
+#### Pasos para obtener una nueva API Key:
+
+1. **Obtener una nueva clave de API**:
+   - Ve a [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Inicia sesión con tu cuenta de Google
+   - Haz clic en "Create API Key" o "Get API Key"
+   - Copia la nueva clave de API
+
+#### Configuración para Producción (Play Store) - ⭐ RECOMENDADO
+
+**Para que la app funcione automáticamente al descargarla de Play Store**, debes configurar la API key durante el build:
+
+**Opción A: Usando el script de build (Más fácil)**
+
+**Linux/Mac:**
+```bash
+export GEMINI_API_KEY=tu_clave_produccion
+./build_production.sh
+```
+
+**Windows:**
+```cmd
+set GEMINI_API_KEY=tu_clave_produccion
+build_production.bat
+```
+
+**Opción B: Manualmente**
+
+```bash
+# Para Android (APK)
+flutter build apk --release --dart-define=GEMINI_API_KEY=tu_clave_produccion
+
+# Para Android (App Bundle - Play Store)
+flutter build appbundle --release --dart-define=GEMINI_API_KEY=tu_clave_produccion
+
+# Para iOS
+flutter build ios --release --dart-define=GEMINI_API_KEY=tu_clave_produccion
+```
+
+**Opción C: Usando variables de entorno**
+
+```bash
+# Linux/Mac
+export GEMINI_API_KEY=tu_clave_produccion
+flutter build appbundle --release
+
+# Windows
+set GEMINI_API_KEY=tu_clave_produccion
+flutter build appbundle --release
+```
+
+#### Configuración para Desarrollo
+
+**Opción 1: Variable de entorno al ejecutar**
+```bash
+flutter run --dart-define=GEMINI_API_KEY=tu_clave_desarrollo
+```
+
+**Opción 2: Desde la aplicación (para testing)**
+- Ejecuta la aplicación
+- Ve a **Ajustes** > **Configuración de API**
+- Ingresa tu clave de API de Gemini
+- Haz clic en "Guardar"
+
+#### Orden de Prioridad de la API Key:
+
+1. **Variable de entorno del build** (`--dart-define`) - ⭐ **PARA PRODUCCIÓN/PLAY STORE**
+2. SharedPreferences (configurada en la app) - Para usuarios avanzados
+3. Valor por defecto (solo desarrollo)
+
+#### Notas importantes para Producción:
+
+- ✅ **PARA PLAY STORE**: Usa `--dart-define=GEMINI_API_KEY=...` al hacer el build
+- ✅ La API key se compila en la app, funcionará automáticamente al descargarla
+- ⚠️ **NUNCA** subas tu clave de API a un repositorio público
+- ⚠️ La clave anterior fue reportada como filtrada y ya no funciona
+- ✅ Restringe tu clave de API en Google Cloud Console para mayor seguridad
+- ✅ Configura límites de cuota en Google Cloud Console para controlar costos
+
+#### Verificar la configuración:
+
+1. Ejecuta la aplicación
+2. Ve a la pestaña "Voz" en la navegación inferior
+3. Haz clic en "Probar Conexión Gemini"
+4. Deberías ver un mensaje de éxito si la clave está configurada correctamente
+
+#### Ejemplo de Workflow para Play Store:
+
+```bash
+# 1. Obtener tu API key de Gemini
+# 2. Configurar la variable de entorno
+export GEMINI_API_KEY=AIzaSy...tu_clave_aqui
+
+# 3. Construir el App Bundle para Play Store
+flutter build appbundle --release --dart-define=GEMINI_API_KEY=$GEMINI_API_KEY
+
+# 4. El archivo estará en: build/app/outputs/bundle/release/app-release.aab
+# 5. Subir a Play Store Console
+```
 
 ## Uso
 

@@ -1676,7 +1676,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'WakeMap',
+            'Inicio',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w800,
@@ -2094,6 +2094,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       context,
       MaterialPageRoute(builder: (_) => const CreateAlarmaPage()),
     );
+    // Resetear el índice a 0 cuando vuelves de CreateAlarmaPage
+    if (mounted) {
+      setState(() {
+        _selectedNavIndex = 0;
+      });
+    }
     if (result == true) {
       await _loadAlarmas();
     }

@@ -68,6 +68,7 @@ class ThemeManager {
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: const Color(0xFFF7F8FA),
+      fontFamily: 'SF Pro Display',
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -75,34 +76,101 @@ class ThemeManager {
         foregroundColor: Colors.black,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
+          fontFamily: 'SF Pro Display',
           fontSize: 24,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: Colors.black,
         ),
       ),
       textTheme: const TextTheme(
-        titleLarge: TextStyle(
+        displayLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
           fontWeight: FontWeight.w700,
-          fontSize: 34,
-          fontFamily: 'MiFuente1',
+          fontSize: 57,
           color: Colors.black87,
         ),
-        bodyMedium: TextStyle(
-          fontSize: 16,
+        displayMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w700,
+          fontSize: 45,
+          color: Colors.black87,
+        ),
+        displaySmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 36,
+          color: Colors.black87,
+        ),
+        headlineLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 32,
+          color: Colors.black87,
+        ),
+        headlineMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 28,
+          color: Colors.black87,
+        ),
+        headlineSmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 24,
+          color: Colors.black87,
+        ),
+        titleLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 22,
           color: Colors.black87,
         ),
         titleMedium: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 18,
-          fontFamily: 'MiFuente2',
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
+          fontSize: 16,
+          color: Colors.black87,
+        ),
+        titleSmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+          color: Colors.black87,
+        ),
+        bodyLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w400,
+          fontSize: 16,
+          color: Colors.black87,
+        ),
+        bodyMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w400,
+          fontSize: 14,
           color: Colors.black87,
         ),
         bodySmall: TextStyle(
-          fontSize: 14,
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w400,
+          fontSize: 12,
           color: Colors.black54,
         ),
+        labelLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+          color: Colors.black87,
+        ),
         labelMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
           fontSize: 12,
+          color: Colors.black45,
+        ),
+        labelSmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
+          fontSize: 11,
           color: Colors.black45,
         ),
       ),
@@ -154,8 +222,14 @@ class ThemeManager {
             width: 2,
           ),
         ),
-        labelStyle: const TextStyle(color: Colors.black54),
-        hintStyle: const TextStyle(color: Colors.black45),
+        labelStyle: const TextStyle(
+          fontFamily: 'SF Pro Display',
+          color: Colors.black54,
+        ),
+        hintStyle: const TextStyle(
+          fontFamily: 'SF Pro Display',
+          color: Colors.black45,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -194,7 +268,10 @@ class ThemeManager {
           backgroundColor: WidgetStateProperty.all(Colors.white),
           elevation: WidgetStateProperty.all(8),
         ),
-        textStyle: const TextStyle(color: Colors.black87),
+        textStyle: const TextStyle(
+          fontFamily: 'SF Pro Display',
+          color: Colors.black87,
+        ),
       ),
     );
   }
@@ -213,6 +290,7 @@ class ThemeManager {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: const Color(0xFF000000),
+      fontFamily: 'SF Pro Display',
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -220,34 +298,101 @@ class ThemeManager {
         foregroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
+          fontFamily: 'SF Pro Display',
           fontSize: 24,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: Colors.white,
         ),
       ),
       textTheme: const TextTheme(
-        titleLarge: TextStyle(
+        displayLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
           fontWeight: FontWeight.w700,
-          fontSize: 34,
-          fontFamily: 'MiFuente1',
+          fontSize: 57,
           color: Colors.white,
         ),
-        bodyMedium: TextStyle(
-          fontSize: 16, 
-          color: Colors.white70,
+        displayMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w700,
+          fontSize: 45,
+          color: Colors.white,
+        ),
+        displaySmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 36,
+          color: Colors.white,
+        ),
+        headlineLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 32,
+          color: Colors.white,
+        ),
+        headlineMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 28,
+          color: Colors.white,
+        ),
+        headlineSmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 24,
+          color: Colors.white,
+        ),
+        titleLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w600,
+          fontSize: 22,
+          color: Colors.white,
         ),
         titleMedium: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 18,
-          fontFamily: 'MiFuente2',
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
+          fontSize: 16,
           color: Colors.white,
         ),
-        bodySmall: TextStyle(
+        titleSmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
           fontSize: 14,
+          color: Colors.white,
+        ),
+        bodyLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w400,
+          fontSize: 16,
+          color: Colors.white70,
+        ),
+        bodyMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w400,
+          fontSize: 14,
+          color: Colors.white70,
+        ),
+        bodySmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w400,
+          fontSize: 12,
           color: Colors.white60,
         ),
+        labelLarge: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+          color: Colors.white,
+        ),
         labelMedium: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
           fontSize: 12,
+          color: Colors.white54,
+        ),
+        labelSmall: TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontWeight: FontWeight.w500,
+          fontSize: 11,
           color: Colors.white54,
         ),
       ),
@@ -303,8 +448,14 @@ class ThemeManager {
             width: 2,
           ),
         ),
-        labelStyle: const TextStyle(color: Colors.white70),
-        hintStyle: const TextStyle(color: Colors.white54),
+        labelStyle: const TextStyle(
+          fontFamily: 'SF Pro Display',
+          color: Colors.white70,
+        ),
+        hintStyle: const TextStyle(
+          fontFamily: 'SF Pro Display',
+          color: Colors.white54,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -343,7 +494,10 @@ class ThemeManager {
           backgroundColor: WidgetStateProperty.all(const Color(0xFF1C1C1E)),
           elevation: WidgetStateProperty.all(8),
         ),
-        textStyle: const TextStyle(color: Colors.white),
+        textStyle: const TextStyle(
+          fontFamily: 'SF Pro Display',
+          color: Colors.white,
+        ),
       ),
     );
   }
