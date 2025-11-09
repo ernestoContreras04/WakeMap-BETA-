@@ -17,6 +17,7 @@ import 'database_helper.dart';
 import 'create_alarma_page.dart';
 import 'edit_alarma.dart';
 import 'settings_page.dart';
+import 'custom_locations_page.dart';
 import 'theme_manager.dart';
 import 'theme_provider.dart';
 import 'l10n/app_localizations.dart';
@@ -517,6 +518,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           setState(() {
             _selectedNavIndex = 0;
           });
+          // Recargar alarmas cuando vuelves a HomePage desde otra pantalla
+          _loadAlarmas();
         }
       }
     });
@@ -1713,21 +1716,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: theme.brightness == Brightness.dark 
-                      ? Colors.pink.withOpacity(0.2)
-                      : Colors.pink[100],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  CupertinoIcons.person_fill,
-                  color: theme.brightness == Brightness.dark 
-                      ? Colors.pink[300]
-                      : Colors.pink[600],
-                  size: 20,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsPage()),
+                  );
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark 
+                        ? Colors.pink.withOpacity(0.2)
+                        : Colors.pink[100],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    CupertinoIcons.person_fill,
+                    color: theme.brightness == Brightness.dark 
+                        ? Colors.pink[300]
+                        : Colors.pink[600],
+                    size: 20,
+                  ),
                 ),
               ),
             ],
@@ -2041,10 +2052,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         switch (index) {
           case 0:
             // Inicio: simplemente permanecer en la pantalla principal
-            // Asegurarse de que el índice esté en 0
+            // Asegurarse de que el índice esté en 0 y recargar alarmas
             setState(() {
               _selectedNavIndex = 0;
             });
+            // Recargar alarmas cuando se presiona "Inicio" en el navbar
+            // para asegurar que las alarmas creadas desde otras pantallas aparezcan
+            _loadAlarmas();
             break;
           case 1:
             setState(() {
@@ -2060,15 +2074,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               context,
               MaterialPageRoute(builder: (_) => const VoiceTestPage()),
             ).then((result) {
-              // Cuando vuelves de VoiceTestPage, resetear a 0
+              // Cuando vuelves de VoiceTestPage, resetear a 0 y SIEMPRE recargar alarmas
               if (mounted) {
                 setState(() {
                   _selectedNavIndex = 0;
                 });
-                // Si se creó una alarma, recargar la lista
-                if (result == true) {
-                  _loadAlarmas();
-                }
+                // Siempre recargar alarmas al volver de VoiceTestPage
+                // para asegurar que las alarmas creadas por voz aparezcan inmediatamente
+                _loadAlarmas();
               }
             });
             break;
@@ -2078,9 +2091,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             });
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const SettingsPage()),
+              MaterialPageRoute(builder: (_) => const CustomLocationsPage()),
             ).then((_) {
-              // Cuando vuelves de SettingsPage, resetear a 0
               if (mounted) {
                 setState(() {
                   _selectedNavIndex = 0;

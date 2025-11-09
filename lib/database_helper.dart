@@ -7,6 +7,7 @@ class DatabaseHelper {
   static Database? _database;
   // Fallback in-memory storage for web builds (sqflite is not available on web)
   final List<Map<String, dynamic>> _inMemoryAlarmas = <Map<String, dynamic>>[];
+  final List<Map<String, dynamic>> _inMemoryCustomLocations = <Map<String, dynamic>>[];
 
   DatabaseHelper._init();
 
@@ -30,7 +31,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path, 
-      version: 2, 
+      version: 3, 
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -58,12 +59,44 @@ class DatabaseHelper {
     // Crear índices para optimizar consultas frecuentes
     await db.execute('CREATE INDEX idx_alarmas_activa ON alarmas(activa)');
     await db.execute('CREATE INDEX idx_alarmas_nombre ON alarmas(nombre)');
+    
+    // Crear tabla de ubicaciones personalizadas
+    await db.execute('''
+      CREATE TABLE custom_locations (
+        id $idType,
+        nombre $textType,
+        ubicacion $textType,
+        latitud $realType,
+        longitud $realType
+      )
+    ''');
+    
+    // Índice para búsqueda rápida por nombre
+    await db.execute('CREATE INDEX idx_custom_locations_nombre ON custom_locations(nombre)');
   }
 
   Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // Añadir campo sonido_id a la tabla existente
       await db.execute('ALTER TABLE alarmas ADD COLUMN sonido_id TEXT DEFAULT "default"');
+    }
+    if (oldVersion < 3) {
+      // Crear tabla de ubicaciones personalizadas
+      const idType = 'INTEGER PRIMARY KEY AUTOINCREMENT';
+      const textType = 'TEXT NOT NULL';
+      const realType = 'REAL';
+      
+      await db.execute('''
+        CREATE TABLE custom_locations (
+          id $idType,
+          nombre $textType,
+          ubicacion $textType,
+          latitud $realType,
+          longitud $realType
+        )
+      ''');
+      
+      await db.execute('CREATE INDEX idx_custom_locations_nombre ON custom_locations(nombre)');
     }
   }
 
@@ -164,11 +197,123 @@ class DatabaseHelper {
   Future<void> deleteLocalDatabase() async {
     if (kIsWeb) {
       _inMemoryAlarmas.clear();
+      _inMemoryCustomLocations.clear();
       return;
     }
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'alarmas.db');
     await deleteDatabase(path);
     _database = null;
+  }
+
+  // ==================== MÉTODOS PARA UBICACIONES PERSONALIZADAS ====================
+
+  Future<int> insertCustomLocation(Map<String, dynamic> location) async {
+    if (kIsWeb) {
+      final nextId = (_inMemoryCustomLocations.isEmpty) 
+          ? 1 
+          : (_inMemoryCustomLocations.map((l) => l['id'] as int).reduce((a, b) => a > b ? a : b) + 1);
+      final copy = Map<String, dynamic>.from(location);
+      copy['id'] = nextId;
+      _inMemoryCustomLocations.add(copy);
+      return nextId;
+    }
+
+    final db = await instance.database;
+    return await db.insert(
+      'custom_locations',
+      location,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getCustomLocations() async {
+    if (kIsWeb) {
+      return List<Map<String, dynamic>>.from(_inMemoryCustomLocations);
+    }
+
+    final db = await instance.database;
+    return await db.query('custom_locations', orderBy: 'nombre ASC');
+  }
+
+  /// Busca una ubicación personalizada por nombre (case-insensitive y flexible)
+  /// Busca coincidencias exactas y también busca dentro del texto
+  Future<Map<String, dynamic>?> getCustomLocationByName(String name) async {
+    // Limpiar el nombre: quitar artículos y espacios extra
+    String cleanName = name.toLowerCase().trim();
+    cleanName = cleanName.replaceAll(RegExp(r'^(el |la |los |las |a |al |del |de |en )'), '');
+    cleanName = cleanName.trim();
+    
+    if (kIsWeb) {
+      // Buscar coincidencia exacta primero
+      var location = _inMemoryCustomLocations.firstWhere(
+        (l) => (l['nombre'] as String).toLowerCase() == cleanName,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      // Si no hay coincidencia exacta, buscar que el nombre esté contenido
+      if (location.isEmpty) {
+        location = _inMemoryCustomLocations.firstWhere(
+          (l) {
+            final locName = (l['nombre'] as String).toLowerCase();
+            return locName.contains(cleanName) || cleanName.contains(locName);
+          },
+          orElse: () => <String, dynamic>{},
+        );
+      }
+      
+      return location.isEmpty ? null : location;
+    }
+
+    final db = await instance.database;
+    
+    // Primero buscar coincidencia exacta
+    var results = await db.query(
+      'custom_locations',
+      where: 'LOWER(nombre) = ?',
+      whereArgs: [cleanName],
+      limit: 1,
+    );
+    
+    // Si no hay coincidencia exacta, buscar que contenga el nombre
+    if (results.isEmpty) {
+      final allLocations = await db.query('custom_locations');
+      for (var loc in allLocations) {
+        final locName = (loc['nombre'] as String).toLowerCase();
+        if (locName.contains(cleanName) || cleanName.contains(locName)) {
+          return loc;
+        }
+      }
+    }
+    
+    return results.isEmpty ? null : results.first;
+  }
+
+  Future<int> updateCustomLocation(Map<String, dynamic> location) async {
+    if (kIsWeb) {
+      final idx = _inMemoryCustomLocations.indexWhere((l) => l['id'] == location['id']);
+      if (idx != -1) {
+        _inMemoryCustomLocations[idx] = Map<String, dynamic>.from(location);
+        return 1;
+      }
+      return 0;
+    }
+
+    final db = await instance.database;
+    return await db.update(
+      'custom_locations',
+      location,
+      where: 'id = ?',
+      whereArgs: [location['id']],
+    );
+  }
+
+  Future<int> deleteCustomLocation(int id) async {
+    if (kIsWeb) {
+      _inMemoryCustomLocations.removeWhere((l) => l['id'] == id);
+      return 1;
+    }
+    final db = await instance.database;
+    return await db.delete('custom_locations', where: 'id = ?', whereArgs: [id]);
   }
 }

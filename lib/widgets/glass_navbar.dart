@@ -3,8 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'dart:ui';
 import 'package:tfg_definitivo2/l10n/app_localizations.dart';
 import 'package:tfg_definitivo2/create_alarma_page.dart';
-import 'package:tfg_definitivo2/settings_page.dart';
 import 'package:tfg_definitivo2/voice_test_page.dart';
+import 'package:tfg_definitivo2/custom_locations_page.dart';
 
 class GlassNavbar extends StatefulWidget {
   final int currentIndex;
@@ -110,8 +110,8 @@ class _GlassNavbarState extends State<GlassNavbar>
                   ),
                   _buildNavItem(
                     context,
-                    CupertinoIcons.settings,
-                    AppLocalizations.of(context).settings,
+                    CupertinoIcons.location,
+                    'Ubicaciones personalizadas',
                     3,
                     isDark,
                   ),
@@ -194,7 +194,7 @@ class _GlassNavbarState extends State<GlassNavbar>
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: index == 3 ? 9 : 11, // Texto más pequeño para ubicaciones
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: isSelected
                       ? Colors.redAccent
@@ -205,7 +205,7 @@ class _GlassNavbarState extends State<GlassNavbar>
                 child: Text(
                   label,
                   textAlign: TextAlign.center,
-                  maxLines: 1,
+                  maxLines: index == 3 ? 2 : 1, // 2 líneas para ubicaciones
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -244,10 +244,10 @@ class _GlassNavbarState extends State<GlassNavbar>
         );
         break;
       case 3:
-        // Configuración - siempre navegar
+        // Ubicaciones personalizadas
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const SettingsPage()),
+          MaterialPageRoute(builder: (_) => const CustomLocationsPage()),
         );
         break;
     }

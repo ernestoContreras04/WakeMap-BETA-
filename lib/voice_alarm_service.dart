@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'env.dart';
+import 'database_helper.dart';
 
 class VoiceAlarmService {
   static final VoiceAlarmService _instance = VoiceAlarmService._internal();
@@ -79,7 +80,7 @@ class VoiceAlarmService {
       _logger.d('🎤 Procesando comando de voz: $voiceText');
 
       // Preparar el prompt para Gemini
-      final prompt = _createPrompt(voiceText);
+      final prompt = await _createPrompt(voiceText);
       
       // Llamar a la API de Gemini
       final response = await _callGeminiAPI(prompt);
@@ -99,7 +100,17 @@ class VoiceAlarmService {
   }
 
   /// Crea el prompt optimizado para Gemini
-  String _createPrompt(String voiceText) {
+  Future<String> _createPrompt(String voiceText) async {
+    // Obtener lista de ubicaciones personalizadas para ayudar a Gemini
+    final customLocations = await DatabaseHelper.instance.getCustomLocations();
+    final locationNames = customLocations.map((l) => l['nombre'] as String).toList();
+    
+    String locationHint = '';
+    if (locationNames.isNotEmpty) {
+      locationHint = '\n\nUbicaciones personalizadas disponibles: ${locationNames.join(", ")}. '
+          'Si el usuario menciona alguna de estas, usa EXACTAMENTE ese nombre en "location".';
+    }
+    
     return '''
 Analiza: "$voiceText"
 
@@ -117,7 +128,9 @@ Reglas:
 - "cuando llegue" = proximidad
 - Rango por defecto: 100m
 - Ciudades = "ciudad"
-- Trabajo/casa = "lugar_personalizado"
+- Trabajo/casa/gimnasio/etc = "lugar_personalizado"
+- Si menciona "trabajo", "casa", "gimnasio" u otros lugares personales, extrae SOLO la palabra clave (ej: "trabajo", "casa")
+- Para ubicaciones personalizadas, usa el nombre EXACTO sin artículos (ej: "trabajo" no "el trabajo")$locationHint
 ''';
   }
 
@@ -211,8 +224,8 @@ Reglas:
         if (errorMessage != null) {
           _logger.e('❌ Error API Gemini: $errorMessage');
           _logger.e('📋 Detalles técnicos: Status ${response.statusCode} - ${response.body}');
-        } else {
-          _logger.e('❌ Error API Gemini: ${response.statusCode} - ${response.body}');
+      } else {
+        _logger.e('❌ Error API Gemini: ${response.statusCode} - ${response.body}');
         }
         return null;
       }

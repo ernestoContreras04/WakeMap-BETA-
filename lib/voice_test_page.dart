@@ -143,25 +143,40 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
       String address = alarmData.location;
       
       try {
-        // Intentar primero con Google Places API
-        final placesResult = await _searchLocationWithGooglePlaces(alarmData.location);
-        if (placesResult != null) {
-          latitude = placesResult['latitude'];
-          longitude = placesResult['longitude'];
-          address = placesResult['address'] ?? alarmData.location;
+        // 1. PRIMERO: Buscar en ubicaciones personalizadas (prioridad)
+        final customLocation = await DatabaseHelper.instance.getCustomLocationByName(alarmData.location);
+        if (customLocation != null) {
+          latitude = customLocation['latitud'] as double;
+          longitude = customLocation['longitud'] as double;
+          address = customLocation['ubicacion'] as String;
+          final customName = customLocation['nombre'] as String;
+          
+          if (mounted) {
+            setState(() {
+              _statusMessage = '✅ Usando ubicación personalizada: $customName';
+            });
+          }
         } else {
-          // Fallback a geocoding si Places API no funciona
-          final locations = await geo.locationFromAddress(alarmData.location);
-          if (locations.isNotEmpty) {
-            latitude = locations.first.latitude;
-            longitude = locations.first.longitude;
+          // 2. Si no está en personalizadas, buscar con Google Places API
+          final placesResult = await _searchLocationWithGooglePlaces(alarmData.location);
+          if (placesResult != null) {
+            latitude = placesResult['latitude'];
+            longitude = placesResult['longitude'];
+            address = placesResult['address'] ?? alarmData.location;
+          } else {
+            // 3. Fallback a geocoding si Places API no funciona
+            final locations = await geo.locationFromAddress(alarmData.location);
+            if (locations.isNotEmpty) {
+              latitude = locations.first.latitude;
+              longitude = locations.first.longitude;
+            }
           }
         }
       } catch (e) {
         // Si falla, mostrar mensaje
         if (mounted) {
           setState(() {
-            _statusMessage = '⚠️ Ubicación no encontrada. Intenta ser más específico (ej: "Madrid, España").';
+            _statusMessage = '⚠️ Ubicación no encontrada. Crea una ubicación personalizada o intenta ser más específico.';
           });
         }
         return;
@@ -170,7 +185,7 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
       if (latitude == null || longitude == null) {
         if (mounted) {
           setState(() {
-            _statusMessage = '⚠️ Ubicación no encontrada. Intenta ser más específico.';
+            _statusMessage = '⚠️ Ubicación no encontrada. Crea una ubicación personalizada o intenta ser más específico.';
           });
         }
         return;
@@ -189,8 +204,10 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
       if (mounted) {
         setState(() {
           _statusMessage = '✅ Alarma "${alarmData.alarmName}" creada exitosamente';
+          _lastAlarmData = alarmData;
         });
         
+        // Mostrar mensaje de éxito con opción de volver
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ Alarma "${alarmData.alarmName}" creada exitosamente'),
@@ -200,7 +217,7 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
               label: 'Volver',
               textColor: Colors.white,
               onPressed: () {
-                // Volver a HomePage y recargar alarmas
+                // Volver a HomePage y notificar que se creó una alarma
                 Navigator.pop(context, true);
               },
             ),
@@ -209,7 +226,7 @@ class _VoiceTestPageState extends State<VoiceTestPage> {
         
         // Limpiar los datos después de 5 segundos para permitir otro comando
         Future.delayed(const Duration(seconds: 5), () {
-          if (mounted && _recognizedText.isNotEmpty) {
+          if (mounted) {
             setState(() {
               _recognizedText = '';
               _lastAlarmData = null;
